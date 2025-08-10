@@ -97,10 +97,10 @@ describe('Test Workflow', () => {
       expect(steps[5].run).toBe('npm run test:coverage')
     })
 
-    it('should deploy Windows coverage on push events', () => {
+    it('should deploy Windows coverage on push and workflow_dispatch events', () => {
       const deployStep = steps[6]
       expect(deployStep.name).toBe('Windows環境のカバレッジをGitHub Pagesにデプロイ')
-      expect(deployStep.if).toBe("matrix.os == 'windows-latest' && github.event_name == 'push'")
+      expect(deployStep.if).toBe("matrix.os == 'windows-latest' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')")
       expect(deployStep.uses).toBe('./')
     })
 
