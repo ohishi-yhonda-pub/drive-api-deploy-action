@@ -30,7 +30,7 @@ jobs:
           test/
           package.json
           package-lock.json
-          vitest.config.ts
+          vitest.config.mjs
           tsconfig.json
     
     - name: Node.js ${{ matrix.node-version }} のセットアップ
@@ -49,7 +49,7 @@ jobs:
         cp -r main-tests/test test-workspace/
         cp main-tests/package.json test-workspace/
         cp main-tests/package-lock.json test-workspace/
-        cp main-tests/vitest.config.ts test-workspace/
+        cp main-tests/vitest.config.mjs test-workspace/
         cp main-tests/tsconfig.json test-workspace/
         
         # チェックサムファイルがある場合は検証（オプション）
