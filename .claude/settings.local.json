@@ -4,7 +4,8 @@
       "Bash(npm test)",
       "Bash(npm run test:coverage:*)",
       "Bash(ls:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(npm run typecheck:*)"
     ],
     "deny": []
   }

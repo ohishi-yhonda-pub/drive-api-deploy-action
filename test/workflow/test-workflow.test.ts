@@ -1,15 +1,15 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import * as yaml from 'yaml'
+import { YamlParser } from '../../src/workflow/yaml-parser'
 import * as fs from 'fs'
 import * as path from 'path'
 
 describe('Test Workflow', () => {
+  let parser: YamlParser
   let workflowConfig: any
 
   beforeEach(() => {
-    const workflowPath = path.join(process.cwd(), '.github', 'workflows', 'test.yml')
-    const workflowContent = fs.readFileSync(workflowPath, 'utf-8')
-    workflowConfig = yaml.parse(workflowContent)
+    parser = new YamlParser()
+    workflowConfig = parser.parseWorkflowYaml()
   })
 
   describe('Workflow Configuration', () => {
