@@ -1,0 +1,232 @@
+name: 'Drive API Deploy Action'
+description: 'Deploy Drive API to public repository and GitHub Pages with OpenAPI generation and coverage reports'
+author: 'ohishi-yhonda-org'
+
+inputs:
+  github-token:
+    description: 'GitHub token for accessing private repository'
+    required: true
+  public-repo-token:
+    description: 'GitHub token for accessing public repository'
+    required: true
+  private-repo:
+    description: 'Private repository (owner/repo)'
+    required: true
+  public-repo:
+    description: 'Public repository (owner/repo)'
+    required: true
+  wrangler-port:
+    description: 'Port for Wrangler dev server'
+    required: false
+    default: '8787'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Check bash availability
+      id: check-bash
+      shell: powershell
+      run: |
+        try {
+          $bashPath = (Get-Command bash -ErrorAction Stop).Source
+          Write-Host "Bash found at: $bashPath"
+          echo "bash_available=true" >> $env:GITHUB_OUTPUT
+        } catch {
+          Write-Host "Bash not found, will use PowerShell"
+          echo "bash_available=false" >> $env:GITHUB_OUTPUT
+        }
+    
+    - name: Process and Deploy (Bash)
+      if: steps.check-bash.outputs.bash_available == 'true'
+      shell: bash
+      run: |
+        # Create temp directory
+        tempDir="/tmp/deploy-$(date +%Y%m%d%H%M%S)"
+        mkdir -p "$tempDir"
+        cd "$tempDir"
+        
+        # Clone private repository
+        git clone https://x-access-token:${{ inputs.github-token }}@github.com/${{ inputs.private-repo }}.git private
+        cd private
+        
+        # Install dependencies
+        npm install
+        
+        # Copy template for Wrangler
+        if [ -f .dev.vars.template ]; then
+          cp .dev.vars.template .dev.vars
+        fi
+        
+        # Start Wrangler and generate OpenAPI
+        npx wrangler dev --port ${{ inputs.wrangler-port }} --local &
+        wranglerPID=$!
+        sleep 5
+        
+        # Wait for server and fetch OpenAPI
+        maxAttempts=30
+        for i in $(seq 1 $maxAttempts); do
+          if curl -s http://localhost:${{ inputs.wrangler-port }}/specification > docs/openapi.json; then
+            echo "OpenAPI specification generated"
+            break
+          fi
+          if [ $i -eq $maxAttempts ]; then
+            echo "Wrangler failed to start"
+            exit 1
+          fi
+          sleep 2
+        done
+        
+        # Stop Wrangler
+        kill $wranglerPID || true
+        rm -f .dev.vars
+        
+        # Run tests and generate coverage
+        npm run test:coverage
+        
+        # Remove sensitive files
+        if [ -f .gitattributes ]; then
+          while IFS= read -r line; do
+            if [[ $line =~ ^([^[:space:]]+)[[:space:]]+filter=git-crypt ]]; then
+              file="${BASH_REMATCH[1]}"
+              [ -f "$file" ] && rm -f "$file"
+            fi
+          done < .gitattributes
+          rm -f .gitattributes
+        fi
+        
+        # Push to public repository
+        git add -A
+        git commit -m "Update for public repository" --allow-empty
+        git remote add public https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git
+        git push public HEAD:main --force
+        
+        # Deploy to GitHub Pages
+        cd ..
+        git clone https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git public
+        cd public
+        
+        # Checkout gh-pages branch
+        git checkout gh-pages 2>/dev/null || git checkout --orphan gh-pages
+        
+        # Clear existing content
+        find . -maxdepth 1 -name .git -prune -o -exec rm -rf {} + 2>/dev/null || true
+        
+        # Copy new content
+        cp -r ../private/coverage .
+        cp -r ../private/docs/* .
+        
+        # Commit and push
+        git add -A
+        git commit -m "Deploy to GitHub Pages"
+        git push origin gh-pages --force
+        
+        # Cleanup
+        cd /tmp
+        rm -rf "$tempDir"
+    
+    - name: Process and Deploy (PowerShell)
+      if: steps.check-bash.outputs.bash_available == 'false'
+      shell: powershell
+      run: |
+        # Add Git and Node.js to PATH
+        $env:PATH = "C:\Program Files\Git\cmd;C:\Program Files\nodejs;$env:PATH"
+        
+        # Create temp directory
+        $tempDir = Join-Path $env:TEMP ("deploy-" + (Get-Date -Format "yyyyMMddHHmmss"))
+        New-Item -ItemType Directory -Path $tempDir -Force
+        cd $tempDir
+        
+        # Clone private repository
+        git clone https://x-access-token:${{ inputs.github-token }}@github.com/${{ inputs.private-repo }}.git private
+        cd private
+        
+        # Install dependencies
+        npm install
+        
+        # Copy template for Wrangler
+        if (Test-Path .dev.vars.template) {
+          Copy-Item .dev.vars.template .dev.vars
+        }
+        
+        # Start Wrangler and generate OpenAPI
+        $wranglerJob = Start-Job -ScriptBlock {
+          param($workDir, $port)
+          Set-Location $workDir
+          npx wrangler dev --port $port --local
+        } -ArgumentList (Get-Location).Path, ${{ inputs.wrangler-port }}
+        Start-Sleep -Seconds 5
+        
+        # Wait for server and fetch OpenAPI
+        $maxAttempts = 30
+        for ($i = 1; $i -le $maxAttempts; $i++) {
+          try {
+            $response = Invoke-WebRequest -Uri "http://localhost:${{ inputs.wrangler-port }}/specification" -UseBasicParsing -ErrorAction Stop
+            $response.Content | Out-File -FilePath docs/openapi.json -Encoding UTF8
+            Write-Host "OpenAPI specification generated"
+            break
+          } catch {
+            if ($i -eq $maxAttempts) { throw "Wrangler failed to start" }
+            Start-Sleep -Seconds 2
+          }
+        }
+        
+        # Stop Wrangler
+        Stop-Job -Job $wranglerJob -ErrorAction SilentlyContinue
+        Remove-Job -Job $wranglerJob -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 2
+        Remove-Item .dev.vars -Force -ErrorAction SilentlyContinue
+        
+        # Run tests and generate coverage
+        npm run test:coverage
+        
+        # Remove sensitive files
+        $filesToRemove = @()
+        if (Test-Path .gitattributes) {
+          Get-Content .gitattributes | ForEach-Object {
+            if ($_ -match '^(.+?)\s+filter=git-crypt') {
+              $filesToRemove += $matches[1]
+            }
+          }
+        }
+        
+        foreach ($file in $filesToRemove) {
+          if (Test-Path $file) {
+            Remove-Item $file -Force
+          }
+        }
+        Remove-Item .gitattributes -Force -ErrorAction SilentlyContinue
+        
+        # Push to public repository
+        git add -A
+        git commit -m "Update for public repository" --allow-empty
+        git remote add public https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git
+        git push public HEAD:main --force
+        
+        # Deploy to GitHub Pages
+        cd ..
+        git clone https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git public
+        cd public
+        
+        # Checkout gh-pages branch
+        try {
+          git checkout gh-pages 2>$null
+        } catch {
+          git checkout --orphan gh-pages
+        }
+        
+        # Clear existing content
+        Get-ChildItem -Force | Where-Object { $_.Name -ne '.git' } | Remove-Item -Recurse -Force
+        
+        # Copy new content
+        Copy-Item -Recurse ../private/coverage .
+        Copy-Item -Recurse ../private/docs/* .
+        
+        # Commit and push
+        git add -A
+        git commit -m "Deploy to GitHub Pages"
+        git push origin gh-pages --force
+        
+        # Cleanup
+        cd $env:TEMP
+        Start-Sleep -Seconds 3
+        Remove-Item -Recurse -Force $tempDir -ErrorAction SilentlyContinue
