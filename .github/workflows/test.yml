@@ -30,6 +30,7 @@ jobs:
           test/
           package.json
           package-lock.json
+          vitest.config.ts
           vitest.config.mjs
           tsconfig.json
     
@@ -49,7 +50,14 @@ jobs:
         cp -r main-tests/test test-workspace/
         cp main-tests/package.json test-workspace/
         cp main-tests/package-lock.json test-workspace/
-        cp main-tests/vitest.config.mjs test-workspace/
+        
+        # 設定ファイルのコピー（新旧両方のファイル名に対応）
+        if [ -f main-tests/vitest.config.mjs ]; then
+          cp main-tests/vitest.config.mjs test-workspace/
+        elif [ -f main-tests/vitest.config.ts ]; then
+          cp main-tests/vitest.config.ts test-workspace/
+        fi
+        
         cp main-tests/tsconfig.json test-workspace/
         
         # チェックサムファイルがある場合は検証（オプション）
