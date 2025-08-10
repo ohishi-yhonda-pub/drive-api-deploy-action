@@ -52,33 +52,42 @@ runs:
         # Install dependencies
         npm install
         
-        # Copy template for Wrangler
-        if [ -f .dev.vars.template ]; then
-          cp .dev.vars.template .dev.vars
+        # Check if wrangler.toml exists
+        if [ -f wrangler.toml ]; then
+          echo "Wrangler configuration found, generating OpenAPI specification..."
+          
+          # Copy template for Wrangler
+          if [ -f .dev.vars.template ]; then
+            cp .dev.vars.template .dev.vars
+          fi
+          
+          # Start Wrangler and generate OpenAPI
+          npx wrangler dev --port ${{ inputs.wrangler-port }} --local &
+          wranglerPID=$!
+          sleep 5
+          
+          # Wait for server and fetch OpenAPI
+          maxAttempts=30
+          for i in $(seq 1 $maxAttempts); do
+            if curl -s http://localhost:${{ inputs.wrangler-port }}/specification > docs/openapi.json; then
+              echo "OpenAPI specification generated"
+              break
+            fi
+            if [ $i -eq $maxAttempts ]; then
+              echo "Wrangler failed to start"
+              exit 1
+            fi
+            sleep 2
+          done
+          
+          # Stop Wrangler
+          kill $wranglerPID || true
+          rm -f .dev.vars
+        else
+          echo "No wrangler.toml found, skipping OpenAPI generation"
+          # Create docs directory if it doesn't exist
+          mkdir -p docs
         fi
-        
-        # Start Wrangler and generate OpenAPI
-        npx wrangler dev --port ${{ inputs.wrangler-port }} --local &
-        wranglerPID=$!
-        sleep 5
-        
-        # Wait for server and fetch OpenAPI
-        maxAttempts=30
-        for i in $(seq 1 $maxAttempts); do
-          if curl -s http://localhost:${{ inputs.wrangler-port }}/specification > docs/openapi.json; then
-            echo "OpenAPI specification generated"
-            break
-          fi
-          if [ $i -eq $maxAttempts ]; then
-            echo "Wrangler failed to start"
-            exit 1
-          fi
-          sleep 2
-        done
-        
-        # Stop Wrangler
-        kill $wranglerPID || true
-        rm -f .dev.vars
         
         # Run tests and generate coverage
         npm run test:coverage
@@ -113,7 +122,9 @@ runs:
         
         # Copy new content
         cp -r ../private/coverage .
-        cp -r ../private/docs/* .
+        if [ -d ../private/docs ] && [ "$(ls -A ../private/docs)" ]; then
+          cp -r ../private/docs/* .
+        fi
         
         # Commit and push
         git add -A
@@ -143,38 +154,47 @@ runs:
         # Install dependencies
         npm install
         
-        # Copy template for Wrangler
-        if (Test-Path .dev.vars.template) {
-          Copy-Item .dev.vars.template .dev.vars
-        }
-        
-        # Start Wrangler and generate OpenAPI
-        $wranglerJob = Start-Job -ScriptBlock {
-          param($workDir, $port)
-          Set-Location $workDir
-          npx wrangler dev --port $port --local
-        } -ArgumentList (Get-Location).Path, ${{ inputs.wrangler-port }}
-        Start-Sleep -Seconds 5
-        
-        # Wait for server and fetch OpenAPI
-        $maxAttempts = 30
-        for ($i = 1; $i -le $maxAttempts; $i++) {
-          try {
-            $response = Invoke-WebRequest -Uri "http://localhost:${{ inputs.wrangler-port }}/specification" -UseBasicParsing -ErrorAction Stop
-            $response.Content | Out-File -FilePath docs/openapi.json -Encoding UTF8
-            Write-Host "OpenAPI specification generated"
-            break
-          } catch {
-            if ($i -eq $maxAttempts) { throw "Wrangler failed to start" }
-            Start-Sleep -Seconds 2
+        # Check if wrangler.toml exists
+        if (Test-Path wrangler.toml) {
+          Write-Host "Wrangler configuration found, generating OpenAPI specification..."
+          
+          # Copy template for Wrangler
+          if (Test-Path .dev.vars.template) {
+            Copy-Item .dev.vars.template .dev.vars
           }
+          
+          # Start Wrangler and generate OpenAPI
+          $wranglerJob = Start-Job -ScriptBlock {
+            param($workDir, $port)
+            Set-Location $workDir
+            npx wrangler dev --port $port --local
+          } -ArgumentList (Get-Location).Path, ${{ inputs.wrangler-port }}
+          Start-Sleep -Seconds 5
+          
+          # Wait for server and fetch OpenAPI
+          $maxAttempts = 30
+          for ($i = 1; $i -le $maxAttempts; $i++) {
+            try {
+              $response = Invoke-WebRequest -Uri "http://localhost:${{ inputs.wrangler-port }}/specification" -UseBasicParsing -ErrorAction Stop
+              $response.Content | Out-File -FilePath docs/openapi.json -Encoding UTF8
+              Write-Host "OpenAPI specification generated"
+              break
+            } catch {
+              if ($i -eq $maxAttempts) { throw "Wrangler failed to start" }
+              Start-Sleep -Seconds 2
+            }
+          }
+          
+          # Stop Wrangler
+          Stop-Job -Job $wranglerJob -ErrorAction SilentlyContinue
+          Remove-Job -Job $wranglerJob -Force -ErrorAction SilentlyContinue
+          Start-Sleep -Seconds 2
+          Remove-Item .dev.vars -Force -ErrorAction SilentlyContinue
+        } else {
+          Write-Host "No wrangler.toml found, skipping OpenAPI generation"
+          # Create docs directory if it doesn't exist
+          New-Item -ItemType Directory -Path docs -Force | Out-Null
         }
-        
-        # Stop Wrangler
-        Stop-Job -Job $wranglerJob -ErrorAction SilentlyContinue
-        Remove-Job -Job $wranglerJob -Force -ErrorAction SilentlyContinue
-        Start-Sleep -Seconds 2
-        Remove-Item .dev.vars -Force -ErrorAction SilentlyContinue
         
         # Run tests and generate coverage
         npm run test:coverage
@@ -219,7 +239,9 @@ runs:
         
         # Copy new content
         Copy-Item -Recurse ../private/coverage .
-        Copy-Item -Recurse ../private/docs/* .
+        if ((Test-Path ../private/docs) -and (Get-ChildItem ../private/docs -Force)) {
+          Copy-Item -Recurse ../private/docs/* .
+        }
         
         # Commit and push
         git add -A
