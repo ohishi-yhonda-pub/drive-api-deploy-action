@@ -1,0 +1,42 @@
+name: テストコードのチェックサム生成
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'test/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vitest.config.ts'
+      - 'tsconfig.json'
+
+jobs:
+  generate-checksum:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: チェックアウト
+      uses: actions/checkout@v4
+    
+    - name: チェックサムの生成
+      run: |
+        # テスト関連ファイルのチェックサムを生成
+        find test/ -type f -name "*.ts" -o -name "*.js" | sort | xargs sha256sum > test-files.sha256
+        sha256sum package.json >> test-files.sha256
+        sha256sum package-lock.json >> test-files.sha256
+        sha256sum vitest.config.ts >> test-files.sha256
+        sha256sum tsconfig.json >> test-files.sha256
+        
+        # 全体のチェックサムを生成
+        sha256sum test-files.sha256 > TEST_CHECKSUM
+        
+        echo "テストコードのチェックサム:"
+        cat TEST_CHECKSUM
+    
+    - name: チェックサムファイルのコミット
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add TEST_CHECKSUM test-files.sha256
+        git diff --staged --quiet || git commit -m "更新: テストコードのチェックサム [skip ci]"
+        git push

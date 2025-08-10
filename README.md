@@ -1,5 +1,7 @@
 # Drive API デプロイアクション
 
+[![テスト](https://github.com/ohishi-yhonda-org/drive-api-deploy-action/actions/workflows/test.yml/badge.svg)](https://github.com/ohishi-yhonda-org/drive-api-deploy-action/actions/workflows/test.yml)
+
 - このアクションは、プライベートリポジトリからパブリックリポジトリへのドキュメントとカバレッジのデプロイを自動化します。
 - Drive APIのドキュメントとカバレッジレポートをGitHub PagesにデプロイするためのGitHub Actionです。
 - Wrangler設定を持つCloudflare Workersプロジェクトが必要です。

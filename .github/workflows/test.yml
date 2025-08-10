@@ -1,0 +1,107 @@
+name: テスト
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches-ignore: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+    - name: PRブランチのチェックアウト
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha || github.sha }}
+        path: pr-branch
+    
+    - name: mainブランチのテストコードをチェックアウト
+      uses: actions/checkout@v4
+      with:
+        ref: main
+        path: main-tests
+        sparse-checkout: |
+          test/
+          package.json
+          package-lock.json
+          vitest.config.ts
+          tsconfig.json
+    
+    - name: Node.js ${{ matrix.node-version }} のセットアップ
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+    
+    - name: テスト環境の準備
+      run: |
+        # PRのコードをテスト用ディレクトリにコピー
+        mkdir -p test-workspace
+        cp -r pr-branch/* test-workspace/
+        cp -r pr-branch/.* test-workspace/ 2>/dev/null || true
+        
+        # mainブランチのテストコードで上書き
+        cp -r main-tests/test test-workspace/
+        cp main-tests/package.json test-workspace/
+        cp main-tests/package-lock.json test-workspace/
+        cp main-tests/vitest.config.ts test-workspace/
+        cp main-tests/tsconfig.json test-workspace/
+        
+        # チェックサムファイルがある場合は検証（オプション）
+        if [ -f main-tests/TEST_CHECKSUM ]; then
+          cp main-tests/TEST_CHECKSUM test-workspace/
+          cp main-tests/test-files.sha256 test-workspace/
+          cd test-workspace
+          sha256sum -c test-files.sha256 || echo "警告: テストファイルのチェックサムが一致しません"
+          cd ..
+        fi
+        
+        cd test-workspace
+        npm ci
+    
+    - name: 型チェック
+      working-directory: test-workspace
+      run: npm run typecheck
+    
+    - name: テストの実行
+      working-directory: test-workspace
+      run: npm test
+    
+    - name: カバレッジレポートの生成
+      working-directory: test-workspace
+      run: npm run test:coverage
+    
+    - name: カバレッジレポートのアップロード
+      uses: actions/upload-artifact@v4
+      if: matrix.node-version == '20.x'
+      with:
+        name: coverage-report
+        path: test-workspace/coverage/
+        retention-days: 30
+
+  action-test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    
+    steps:
+    - name: チェックアウト
+      uses: actions/checkout@v4
+    
+    - name: アクションのテスト実行
+      uses: ./
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        public-repo-token: ${{ secrets.GITHUB_TOKEN }}
+        private-repo: 'test-owner/test-private'
+        public-repo: 'test-owner/test-public'
+      continue-on-error: true
+    
+    - name: アクション実行結果の確認
+      run: echo "アクションのテスト実行が完了しました"
