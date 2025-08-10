@@ -148,12 +148,12 @@ describe('GitHub Action Workflow', () => {
       expect(powershellStep.run).toMatch(/filter=git-crypt/)
     })
 
-    it('should force push to public repository', () => {
+    it('should not push to main branch (branch protection)', () => {
       const bashStep = actionConfig.runs.steps[1]
       const powershellStep = actionConfig.runs.steps[2]
 
-      expect(bashStep.run).toMatch(/git push public HEAD:main --force/)
-      expect(powershellStep.run).toMatch(/git push public HEAD:main --force/)
+      expect(bashStep.run).not.toMatch(/git push public HEAD:main --force/)
+      expect(powershellStep.run).not.toMatch(/git push public HEAD:main --force/)
     })
 
     it('should deploy to GitHub Pages', () => {

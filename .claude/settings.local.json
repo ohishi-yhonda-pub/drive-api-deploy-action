@@ -5,7 +5,10 @@
       "Bash(npm run test:coverage:*)",
       "Bash(ls:*)",
       "Bash(cat:*)",
-      "Bash(npm run typecheck:*)"
+      "Bash(npm run typecheck:*)",
+      "Bash(gh run view:*)",
+      "Bash(gh run watch:*)",
+      "Bash(gh run list:*)"
     ],
     "deny": []
   }
