@@ -7,7 +7,7 @@ on:
       - 'test/**'
       - 'package.json'
       - 'package-lock.json'
-      - 'vitest.config.mjs'
+      - 'vitest.config.ts'
       - 'tsconfig.json'
 
 jobs:
@@ -24,7 +24,7 @@ jobs:
         find test/ -type f -name "*.ts" -o -name "*.js" | sort | xargs sha256sum > test-files.sha256
         sha256sum package.json >> test-files.sha256
         sha256sum package-lock.json >> test-files.sha256
-        sha256sum vitest.config.mjs >> test-files.sha256
+        sha256sum vitest.config.ts >> test-files.sha256
         sha256sum tsconfig.json >> test-files.sha256
         
         # 全体のチェックサムを生成

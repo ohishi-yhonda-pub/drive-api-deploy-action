@@ -24,14 +24,15 @@ jobs:
     - name: mainブランチのテストコードをチェックアウト
       uses: actions/checkout@v4
       with:
+        repository: ${{ github.repository }}
         ref: main
+        fetch-depth: 1
         path: main-tests
         sparse-checkout: |
           test/
           package.json
           package-lock.json
           vitest.config.ts
-          vitest.config.mjs
           tsconfig.json
     
     - name: Node.js ${{ matrix.node-version }} のセットアップ
@@ -51,12 +52,8 @@ jobs:
         cp main-tests/package.json test-workspace/
         cp main-tests/package-lock.json test-workspace/
         
-        # 設定ファイルのコピー（新旧両方のファイル名に対応）
-        if [ -f main-tests/vitest.config.mjs ]; then
-          cp main-tests/vitest.config.mjs test-workspace/
-        elif [ -f main-tests/vitest.config.ts ]; then
-          cp main-tests/vitest.config.ts test-workspace/
-        fi
+        # 設定ファイルのコピー
+        cp main-tests/vitest.config.ts test-workspace/
         
         cp main-tests/tsconfig.json test-workspace/
         
