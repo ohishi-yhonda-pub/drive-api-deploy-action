@@ -125,9 +125,12 @@ runs:
         find . -maxdepth 1 -name .git -prune -o -exec rm -rf {} + 2>/dev/null || true
         
         # Copy new content
-        cp -r ../private/coverage .
         if [ -d ../private/docs ] && [ "$(ls -A ../private/docs)" ]; then
           cp -r ../private/docs/* .
+          cp -r ../private/coverage .
+        else
+          # If no docs (Swagger/OpenAPI), use coverage as root
+          cp -r ../private/coverage/* .
         fi
         
         # Configure git
@@ -250,9 +253,12 @@ runs:
         Get-ChildItem -Force | Where-Object { $_.Name -ne '.git' } | Remove-Item -Recurse -Force
         
         # Copy new content
-        Copy-Item -Recurse ../private/coverage .
         if ((Test-Path ../private/docs) -and (Get-ChildItem ../private/docs -Force)) {
           Copy-Item -Recurse ../private/docs/* .
+          Copy-Item -Recurse ../private/coverage .
+        } else {
+          # If no docs (Swagger/OpenAPI), use coverage as root
+          Copy-Item -Recurse ../private/coverage/* .
         }
         
         # Configure git
