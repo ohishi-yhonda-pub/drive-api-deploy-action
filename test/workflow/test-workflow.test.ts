@@ -27,6 +27,11 @@ describe('Test Workflow', () => {
       expect(workflowConfig.on.push['branches-ignore']).toContain('main')
     })
 
+    it('should allow manual workflow dispatch', () => {
+      /* c8 ignore next */
+      expect(workflowConfig.on.workflow_dispatch).toBeDefined()
+    })
+
     it('should have required permissions', () => {
       expect(workflowConfig.permissions).toBeDefined()
       expect(workflowConfig.permissions.contents).toBe('write')

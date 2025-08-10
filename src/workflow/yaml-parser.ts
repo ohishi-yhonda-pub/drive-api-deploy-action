@@ -35,6 +35,7 @@ export interface WorkflowConfig {
       branches?: string[]
       'branches-ignore'?: string[]
     }
+    workflow_dispatch?: any
   }
   permissions?: Record<string, string>
   jobs: Record<string, {
