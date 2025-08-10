@@ -37,9 +37,11 @@ jobs:
     - name: カバレッジレポートの生成
       run: npm run test:coverage
     
-    - name: カバレッジレポートのアップロード
-      uses: actions/upload-artifact@v4
+    - name: Windows環境のカバレッジをGitHub Pagesにデプロイ
+      if: matrix.os == 'windows-latest' && github.event_name == 'push'
+      uses: ./
       with:
-        name: coverage-report-${{ matrix.os }}-${{ matrix.node-version }}
-        path: coverage/
-        retention-days: 30
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        public-repo-token: ${{ secrets.GITHUB_TOKEN }}
+        private-repo: ${{ github.repository }}
+        public-repo: ${{ github.repository }}
