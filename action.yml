@@ -103,6 +103,10 @@ runs:
           rm -f .gitattributes
         fi
         
+        # Configure git
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git config user.name "github-actions[bot]"
+        
         # Push to public repository
         git add -A
         git commit -m "Update for public repository" --allow-empty
@@ -125,6 +129,10 @@ runs:
         if [ -d ../private/docs ] && [ "$(ls -A ../private/docs)" ]; then
           cp -r ../private/docs/* .
         fi
+        
+        # Configure git
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git config user.name "github-actions[bot]"
         
         # Commit and push
         git add -A
@@ -216,6 +224,10 @@ runs:
         }
         Remove-Item .gitattributes -Force -ErrorAction SilentlyContinue
         
+        # Configure git
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git config user.name "github-actions[bot]"
+        
         # Push to public repository
         git add -A
         git commit -m "Update for public repository" --allow-empty
@@ -242,6 +254,10 @@ runs:
         if ((Test-Path ../private/docs) -and (Get-ChildItem ../private/docs -Force)) {
           Copy-Item -Recurse ../private/docs/* .
         }
+        
+        # Configure git
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git config user.name "github-actions[bot]"
         
         # Commit and push
         git add -A
