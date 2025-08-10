@@ -103,17 +103,7 @@ runs:
           rm -f .gitattributes
         fi
         
-        # Configure git
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-        git config user.name "github-actions[bot]"
-        
-        # Push to public repository
-        git add -A
-        git commit -m "Update for public repository" --allow-empty
-        git remote add public https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git
-        git push public HEAD:main --force
-        
-        # Deploy to GitHub Pages
+        # Deploy to GitHub Pages directly from private repository
         cd ..
         git clone https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git public
         cd public
@@ -227,17 +217,7 @@ runs:
         }
         Remove-Item .gitattributes -Force -ErrorAction SilentlyContinue
         
-        # Configure git
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-        git config user.name "github-actions[bot]"
-        
-        # Push to public repository
-        git add -A
-        git commit -m "Update for public repository" --allow-empty
-        git remote add public https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git
-        git push public HEAD:main --force
-        
-        # Deploy to GitHub Pages
+        # Deploy to GitHub Pages directly from private repository
         cd ..
         git clone https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git public
         cd public
