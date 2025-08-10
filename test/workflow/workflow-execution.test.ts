@@ -1,7 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import * as fs from 'fs'
 import * as path from 'path'
-import { execSync } from 'child_process'
 
 describe('Workflow Execution Simulation', () => {
   const mockEnv = {
@@ -107,7 +106,7 @@ describe('Workflow Execution Simulation', () => {
         'public-repo': '${{ github.repository }}'
       }
 
-      Object.entries(inputs).forEach(([key, value]) => {
+      Object.entries(inputs).forEach(([, value]) => {
         expect(value).toMatch(/\$\{\{.*\}\}/)
       })
     })
