@@ -1,16 +1,16 @@
-# Drive API Deploy Action
+# Drive API デプロイアクション
 
-GitHub Action for deploying Drive API documentation and coverage reports.
+Drive APIのドキュメントとカバレッジレポートをデプロイするためのGitHub Actionです。
 
-## Description
+## 説明
 
-This action automates the deployment process for Drive API projects by:
-- Generating OpenAPI documentation using Wrangler
-- Running tests and generating coverage reports
-- Removing sensitive files from the public repository
-- Deploying documentation and coverage to GitHub Pages
+このアクションは、Drive APIプロジェクトのデプロイプロセスを自動化します：
+- Wranglerを使用してOpenAPIドキュメントを生成
+- テストを実行してカバレッジレポートを生成
+- パブリックリポジトリから機密ファイルを削除
+- ドキュメントとカバレッジをGitHub Pagesにデプロイ
 
-## Usage
+## 使用方法
 
 ```yaml
 - name: Deploy Drive API
@@ -22,24 +22,24 @@ This action automates the deployment process for Drive API projects by:
     public-repo: ohishi-yhonda-pub/drive-api
 ```
 
-## Inputs
+## 入力パラメータ
 
-| Input | Description | Required | Default |
-|-------|-------------|----------|---------|
-| `github-token` | GitHub token for accessing private repository | Yes | - |
-| `public-repo-token` | GitHub token for accessing public repository | Yes | - |
-| `private-repo` | Private repository (owner/repo) | Yes | - |
-| `public-repo` | Public repository (owner/repo) | Yes | - |
-| `wrangler-port` | Port for Wrangler dev server | No | `8787` |
+| パラメータ | 説明 | 必須 | デフォルト |
+|-----------|------|------|------------|
+| `github-token` | プライベートリポジトリへのアクセス用GitHubトークン | はい | - |
+| `public-repo-token` | パブリックリポジトリへのアクセス用GitHubトークン | はい | - |
+| `private-repo` | プライベートリポジトリ (owner/repo) | はい | - |
+| `public-repo` | パブリックリポジトリ (owner/repo) | はい | - |
+| `wrangler-port` | Wrangler開発サーバーのポート | いいえ | `8787` |
 
-## Requirements
+## 必要条件
 
-The action requires:
-- Node.js and npm installed on the runner
-- Git installed on the runner
-- A Cloudflare Workers project with Wrangler configuration
-- A `.gitattributes` file marking sensitive files with `filter=git-crypt`
+このアクションには以下が必要です：
+- ランナーにNode.jsとnpmがインストールされていること
+- ランナーにGitがインストールされていること
+- Wrangler設定を持つCloudflare Workersプロジェクト
+- 機密ファイルを`filter=git-crypt`でマークする`.gitattributes`ファイル
 
-## License
+## ライセンス
 
 MIT
