@@ -226,11 +226,11 @@ export class YamlParser {
     
     steps.forEach(step => {
       if (step.run) {
-        if (/if \[ -f wrangler\.toml \]|Test-Path wrangler\.toml/.test(step.run)) {
+        if (/if \[ -f wrangler\.toml \]|Test-Path wrangler\.toml|if \[ -f wrangler\.json \]|Test-Path wrangler\.json|\[ -f wrangler\.toml \] \|\||\(Test-Path wrangler\.toml\) -or/.test(step.run)) {
           checksForWrangler = true
         }
         
-        if (/No wrangler\.toml found, skipping/.test(step.run)) {
+        if (/No wrangler\.toml or wrangler\.json found, skipping/.test(step.run)) {
           skipsIfNotFound = true
         }
         
