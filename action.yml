@@ -111,14 +111,19 @@ runs:
         # Get original commit message
         ORIGINAL_MSG=$(git log -1 --pretty=%B)
         
-        # Commit changes after removing sensitive files with original message
+        # Create a new orphan branch to avoid action history
+        git checkout --orphan temp-deploy
+        
+        # Add all files (sensitive files already removed)
         git add -A
-        git commit --amend -m "$ORIGINAL_MSG" --no-edit
+        
+        # Commit with original message
+        git commit -m "$ORIGINAL_MSG"
         
         # Push to main branch in public repository
         echo "Pushing to main branch in public repository..."
         git remote add public https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git
-        git push public HEAD:main --force
+        git push public temp-deploy:main --force
         
         # Deploy to GitHub Pages directly from private repository
         cd ..
@@ -245,14 +250,19 @@ runs:
         # Get original commit message
         $originalMsg = git log -1 --pretty=%B
         
-        # Commit changes after removing sensitive files with original message
+        # Create a new orphan branch to avoid action history
+        git checkout --orphan temp-deploy
+        
+        # Add all files (sensitive files already removed)
         git add -A
-        git commit --amend -m $originalMsg --no-edit
+        
+        # Commit with original message
+        git commit -m $originalMsg
         
         # Push to main branch in public repository
         Write-Host "Pushing to main branch in public repository..."
         git remote add public https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git
-        git push public HEAD:main --force
+        git push public temp-deploy:main --force
         
         # Deploy to GitHub Pages directly from private repository
         cd ..

@@ -153,12 +153,16 @@ describe('GitHub Action Workflow', () => {
       const powershellStep = actionConfig.runs.steps[2]
 
       // Check that sensitive files are removed before pushing to main
-      expect(bashStep.run).toMatch(/# Remove sensitive files[\s\S]*git push public HEAD:main --force/)
-      expect(powershellStep.run).toMatch(/# Remove sensitive files[\s\S]*git push public HEAD:main --force/)
+      expect(bashStep.run).toMatch(/# Remove sensitive files[\s\S]*git push public temp-deploy:main --force/)
+      expect(powershellStep.run).toMatch(/# Remove sensitive files[\s\S]*git push public temp-deploy:main --force/)
+      
+      // Check that orphan branch is created to avoid action history
+      expect(bashStep.run).toMatch(/git checkout --orphan temp-deploy/)
+      expect(powershellStep.run).toMatch(/git checkout --orphan temp-deploy/)
       
       // Check that original commit message is preserved
-      expect(bashStep.run).toMatch(/git commit --amend -m "\$ORIGINAL_MSG" --no-edit/)
-      expect(powershellStep.run).toMatch(/git commit --amend -m \$originalMsg --no-edit/)
+      expect(bashStep.run).toMatch(/git commit -m "\$ORIGINAL_MSG"/)
+      expect(powershellStep.run).toMatch(/git commit -m \$originalMsg/)
     })
 
     it('should deploy to GitHub Pages', () => {
