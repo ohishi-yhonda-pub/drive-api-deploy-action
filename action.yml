@@ -104,12 +104,6 @@ runs:
           rm -f .gitattributes
         fi
         
-        # Remove .github directory to prevent duplicate workflow execution
-        echo "Checking .github directory before removal..."
-        ls -la .github || echo ".github directory not found"
-        rm -rf .github
-        echo ".github directory removed"
-        
         # Configure git for commit
         git config user.email "github-actions[bot]@users.noreply.github.com"
         git config user.name "github-actions[bot]"
@@ -120,7 +114,13 @@ runs:
         # Create a new orphan branch to avoid action history
         git checkout --orphan temp-deploy
         
-        # Add all files (sensitive files already removed)
+        # Remove .github directory to prevent duplicate workflow execution
+        echo "Checking .github directory before removal..."
+        ls -la .github || echo ".github directory not found"
+        rm -rf .github
+        echo ".github directory removed"
+        
+        # Add all files (sensitive files and .github already removed)
         git add -A
         
         # Commit with original message
@@ -249,16 +249,6 @@ runs:
         }
         Remove-Item .gitattributes -Force -ErrorAction SilentlyContinue
         
-        # Remove .github directory to prevent duplicate workflow execution
-        Write-Host "Checking .github directory before removal..."
-        if (Test-Path .github) {
-          Get-ChildItem .github -Force | Format-List
-          Remove-Item .github -Recurse -Force -ErrorAction SilentlyContinue
-          Write-Host ".github directory removed"
-        } else {
-          Write-Host ".github directory not found"
-        }
-        
         # Configure git for commit
         git config user.email "github-actions[bot]@users.noreply.github.com"
         git config user.name "github-actions[bot]"
@@ -269,7 +259,17 @@ runs:
         # Create a new orphan branch to avoid action history
         git checkout --orphan temp-deploy
         
-        # Add all files (sensitive files already removed)
+        # Remove .github directory to prevent duplicate workflow execution
+        Write-Host "Checking .github directory before removal..."
+        if (Test-Path .github) {
+          Get-ChildItem .github -Force | Format-List
+          Remove-Item .github -Recurse -Force -ErrorAction SilentlyContinue
+          Write-Host ".github directory removed"
+        } else {
+          Write-Host ".github directory not found"
+        }
+        
+        # Add all files (sensitive files and .github already removed)
         git add -A
         
         # Commit with original message
