@@ -52,8 +52,8 @@ runs:
         # Install dependencies
         npm install
         
-        # Check if wrangler.toml exists
-        if [ -f wrangler.toml ]; then
+        # Check if wrangler.toml or wrangler.json exists
+        if [ -f wrangler.toml ] || [ -f wrangler.json ]; then
           echo "Wrangler configuration found, generating OpenAPI specification..."
           
           # Copy template for Wrangler
@@ -84,7 +84,7 @@ runs:
           kill $wranglerPID || true
           rm -f .dev.vars
         else
-          echo "No wrangler.toml found, skipping OpenAPI generation"
+          echo "No wrangler.toml or wrangler.json found, skipping OpenAPI generation"
           # Create docs directory if it doesn't exist
           mkdir -p docs
         fi
@@ -155,8 +155,8 @@ runs:
         # Install dependencies
         npm install
         
-        # Check if wrangler.toml exists
-        if (Test-Path wrangler.toml) {
+        # Check if wrangler.toml or wrangler.json exists
+        if ((Test-Path wrangler.toml) -or (Test-Path wrangler.json)) {
           Write-Host "Wrangler configuration found, generating OpenAPI specification..."
           
           # Copy template for Wrangler
@@ -192,7 +192,7 @@ runs:
           Start-Sleep -Seconds 2
           Remove-Item .dev.vars -Force -ErrorAction SilentlyContinue
         } else {
-          Write-Host "No wrangler.toml found, skipping OpenAPI generation"
+          Write-Host "No wrangler.toml or wrangler.json found, skipping OpenAPI generation"
           # Create docs directory if it doesn't exist
           New-Item -ItemType Directory -Path docs -Force | Out-Null
         }
