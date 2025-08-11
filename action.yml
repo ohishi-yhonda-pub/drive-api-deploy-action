@@ -105,7 +105,10 @@ runs:
         fi
         
         # Remove .github directory to prevent duplicate workflow execution
+        echo "Checking .github directory before removal..."
+        ls -la .github || echo ".github directory not found"
         rm -rf .github
+        echo ".github directory removed"
         
         # Configure git for commit
         git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -247,7 +250,14 @@ runs:
         Remove-Item .gitattributes -Force -ErrorAction SilentlyContinue
         
         # Remove .github directory to prevent duplicate workflow execution
-        Remove-Item .github -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Host "Checking .github directory before removal..."
+        if (Test-Path .github) {
+          Get-ChildItem .github -Force | Format-List
+          Remove-Item .github -Recurse -Force -ErrorAction SilentlyContinue
+          Write-Host ".github directory removed"
+        } else {
+          Write-Host ".github directory not found"
+        }
         
         # Configure git for commit
         git config user.email "github-actions[bot]@users.noreply.github.com"
