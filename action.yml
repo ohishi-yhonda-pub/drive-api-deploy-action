@@ -52,8 +52,8 @@ runs:
         # Install dependencies
         npm install
         
-        # Check if wrangler.toml or wrangler.json exists
-        if [ -f wrangler.toml ] || [ -f wrangler.json ]; then
+        # Check if wrangler.toml or wrangler.json or wrangler.jsonc exists
+        if [ -f wrangler.toml ] || [ -f wrangler.json ] || [ -f wrangler.jsonc ]; then
           echo "Wrangler configuration found, generating OpenAPI specification..."
           
           # Copy template for Wrangler
@@ -84,7 +84,7 @@ runs:
           kill $wranglerPID || true
           rm -f .dev.vars
         else
-          echo "No wrangler.toml or wrangler.json found, skipping OpenAPI generation"
+          echo "No wrangler.toml or wrangler.json or wrangler.jsonc found, skipping OpenAPI generation"
           # Create docs directory if it doesn't exist
           mkdir -p docs
         fi
@@ -155,8 +155,8 @@ runs:
         # Install dependencies
         npm install
         
-        # Check if wrangler.toml or wrangler.json exists
-        if ((Test-Path wrangler.toml) -or (Test-Path wrangler.json)) {
+        # Check if wrangler.toml or wrangler.json or wrangler.jsonc exists
+        if ((Test-Path wrangler.toml) -or (Test-Path wrangler.json) -or (Test-Path wrangler.jsonc)) {
           Write-Host "Wrangler configuration found, generating OpenAPI specification..."
           
           # Copy template for Wrangler
