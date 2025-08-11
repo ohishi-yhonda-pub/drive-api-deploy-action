@@ -104,6 +104,18 @@ runs:
           rm -f .gitattributes
         fi
         
+        # Get original commit message
+        ORIGINAL_MSG=$(git log -1 --pretty=%B)
+        
+        # Commit changes after removing sensitive files with original message
+        git add -A
+        git commit --amend -m "$ORIGINAL_MSG" --no-edit
+        
+        # Push to main branch in public repository
+        echo "Pushing to main branch in public repository..."
+        git remote add public https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git
+        git push public HEAD:main --force
+        
         # Deploy to GitHub Pages directly from private repository
         cd ..
         git clone https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git public
@@ -221,6 +233,18 @@ runs:
           }
         }
         Remove-Item .gitattributes -Force -ErrorAction SilentlyContinue
+        
+        # Get original commit message
+        $originalMsg = git log -1 --pretty=%B
+        
+        # Commit changes after removing sensitive files with original message
+        git add -A
+        git commit --amend -m $originalMsg --no-edit
+        
+        # Push to main branch in public repository
+        Write-Host "Pushing to main branch in public repository..."
+        git remote add public https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git
+        git push public HEAD:main --force
         
         # Deploy to GitHub Pages directly from private repository
         cd ..

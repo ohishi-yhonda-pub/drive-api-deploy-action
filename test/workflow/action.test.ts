@@ -148,12 +148,17 @@ describe('GitHub Action Workflow', () => {
       expect(powershellStep.run).toMatch(/filter=git-crypt/)
     })
 
-    it('should not push to main branch (branch protection)', () => {
+    it('should push to main branch after removing sensitive files', () => {
       const bashStep = actionConfig.runs.steps[1]
       const powershellStep = actionConfig.runs.steps[2]
 
-      expect(bashStep.run).not.toMatch(/git push public HEAD:main --force/)
-      expect(powershellStep.run).not.toMatch(/git push public HEAD:main --force/)
+      // Check that sensitive files are removed before pushing to main
+      expect(bashStep.run).toMatch(/# Remove sensitive files[\s\S]*git push public HEAD:main --force/)
+      expect(powershellStep.run).toMatch(/# Remove sensitive files[\s\S]*git push public HEAD:main --force/)
+      
+      // Check that original commit message is preserved
+      expect(bashStep.run).toMatch(/git commit --amend -m "\$ORIGINAL_MSG" --no-edit/)
+      expect(powershellStep.run).toMatch(/git commit --amend -m \$originalMsg --no-edit/)
     })
 
     it('should deploy to GitHub Pages', () => {
