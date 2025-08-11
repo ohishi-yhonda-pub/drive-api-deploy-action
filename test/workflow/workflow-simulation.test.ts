@@ -148,8 +148,9 @@ describe('Workflow Simulation Tests', () => {
       const runContent = bashStep!.run!
 
       expect(runContent).toContain('if [ $i -eq $maxAttempts ]; then')
-      expect(runContent).toContain('echo "Wrangler failed to start"')
-      expect(runContent).toContain('exit 1')
+      expect(runContent).toContain('echo "Warning: Wrangler failed to start after $maxAttempts attempts"')
+      expect(runContent).toContain('echo "Continuing without OpenAPI specification..."')
+      expect(runContent).not.toContain('exit 1')
     })
 
     it('should validate cleanup happens even on failure', () => {
@@ -168,7 +169,10 @@ describe('Workflow Simulation Tests', () => {
       const powershellStep = validator.getStepByName('Process and Deploy (PowerShell)')
       const runContent = powershellStep!.run!
 
-      expect(runContent).toContain('if ($i -eq $maxAttempts) { throw "Wrangler failed to start" }')
+      expect(runContent).toContain('if ($i -eq $maxAttempts) {')
+      expect(runContent).toContain('Write-Host "Warning: Wrangler failed to start after $maxAttempts attempts"')
+      expect(runContent).toContain('Write-Host "Continuing without OpenAPI specification..."')
+      expect(runContent).not.toContain('throw "Wrangler failed to start"')
       expect(runContent).toContain('-ErrorAction SilentlyContinue')
       expect(runContent).toContain('Remove-Item -Recurse -Force $tempDir')
     })

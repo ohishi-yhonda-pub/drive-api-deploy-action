@@ -74,8 +74,9 @@ runs:
               break
             fi
             if [ $i -eq $maxAttempts ]; then
-              echo "Wrangler failed to start"
-              exit 1
+              echo "Warning: Wrangler failed to start after $maxAttempts attempts"
+              echo "Continuing without OpenAPI specification..."
+              break
             fi
             sleep 2
           done
@@ -181,7 +182,11 @@ runs:
               Write-Host "OpenAPI specification generated"
               break
             } catch {
-              if ($i -eq $maxAttempts) { throw "Wrangler failed to start" }
+              if ($i -eq $maxAttempts) {
+                Write-Host "Warning: Wrangler failed to start after $maxAttempts attempts"
+                Write-Host "Continuing without OpenAPI specification..."
+                break
+              }
               Start-Sleep -Seconds 2
             }
           }
