@@ -326,46 +326,51 @@ runs:
         $branchName = "deploy-" + (Get-Date -Format "yyyyMMddHHmmss")
         git push public temp-deploy:$branchName --force
         
-        # Create Pull Request using GitHub CLI
+        # Create Pull Request using GitHub API
         Write-Host "Creating pull request..."
         
-        # Configure GitHub CLI
-        $env:GH_TOKEN = "${{ inputs.public-repo-token }}"
-        
-        # Check if GitHub CLI is available
+        # Use GitHub API to create PR
         try {
-          $ghVersion = gh --version
-          Write-Host "GitHub CLI version: $ghVersion"
-        } catch {
-          Write-Host "GitHub CLI not found. Installing..."
-          # For GitHub Actions, gh should be pre-installed
-        }
-        
-        # Create PR directly without cloning
-        try {
-          # Create PR and capture only stdout (PR URL)
-          $prUrl = gh pr create --repo ${{ inputs.public-repo }} `
-            --base main `
-            --head $branchName `
-            --title "Deploy from private repository: $originalMsg" `
-            --body "Automated deployment from private repository.`n`nOriginal commit message:`n$originalMsg"
+          $headers = @{
+            "Authorization" = "Bearer ${{ inputs.public-repo-token }}"
+            "Accept" = "application/vnd.github.v3+json"
+          }
           
-          if ($prUrl -and $prUrl -match "^https://github.com/") {
-            Write-Host "Pull request created: $prUrl"
+          $body = @{
+            "title" = "Deploy from private repository: $originalMsg"
+            "body" = "Automated deployment from private repository.`n`nOriginal commit message:`n$originalMsg"
+            "head" = $branchName
+            "base" = "main"
+          } | ConvertTo-Json
+          
+          $apiUrl = "https://api.github.com/repos/${{ inputs.public-repo }}/pulls"
+          
+          Write-Host "Creating PR via API: $apiUrl"
+          $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Headers $headers -Body $body -ContentType "application/json"
+          
+          if ($response -and $response.html_url) {
+            Write-Host "Pull request created: $($response.html_url)"
             
-            # Auto-merge the PR
+            # Auto-merge the PR using API
             Write-Host "Auto-merging pull request..."
             try {
-              gh pr merge $prUrl --repo ${{ inputs.public-repo }} --merge --delete-branch
+              $mergeUrl = "https://api.github.com/repos/${{ inputs.public-repo }}/pulls/$($response.number)/merge"
+              $mergeBody = @{
+                "commit_title" = "Merge pull request #$($response.number)"
+                "commit_message" = "Auto-merge deployment PR"
+                "merge_method" = "merge"
+              } | ConvertTo-Json
+              
+              $mergeResponse = Invoke-RestMethod -Uri $mergeUrl -Method Put -Headers $headers -Body $mergeBody -ContentType "application/json"
               Write-Host "Pull request merged successfully!"
             } catch {
-              Write-Host "Auto-merge failed. Please merge manually."
+              Write-Host "Auto-merge failed. Please merge manually. Error: $_"
             }
           } else {
-            throw "PR creation failed"
+            throw "PR creation failed - no URL returned"
           }
         } catch {
-          Write-Host "Failed to create PR. Error: $_"
+          Write-Host "Failed to create PR via API. Error: $_"
           Write-Host "You may need to create the PR manually at: https://github.com/${{ inputs.public-repo }}/pull/new/$branchName"
           Write-Host "Continuing with GitHub Pages deployment..."
         }
