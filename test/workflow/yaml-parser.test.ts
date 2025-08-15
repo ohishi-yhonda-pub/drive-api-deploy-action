@@ -233,6 +233,70 @@ describe('YamlParser', () => {
       expect(matrix.totalCombinations).toBe(0)
     })
 
+    it('should handle matrix with missing os field', () => {
+      const config = {
+        name: 'Test',
+        on: { push: {} },
+        jobs: {
+          test: {
+            'runs-on': 'ubuntu-latest',
+            strategy: {
+              matrix: {
+                'node-version': ['20.x']
+              }
+            },
+            steps: []
+          }
+        }
+      }
+      
+      const matrix = parser.analyzeWorkflowMatrix(config as any)
+      expect(matrix.operatingSystems).toEqual([])
+      expect(matrix.nodeVersions).toEqual(['20.x'])
+      expect(matrix.totalCombinations).toBe(0)
+    })
+
+    it('should handle matrix with missing node-version field', () => {
+      const config = {
+        name: 'Test',
+        on: { push: {} },
+        jobs: {
+          test: {
+            'runs-on': 'ubuntu-latest',
+            strategy: {
+              matrix: {
+                os: ['ubuntu-latest']
+              }
+            },
+            steps: []
+          }
+        }
+      }
+      
+      const matrix = parser.analyzeWorkflowMatrix(config as any)
+      expect(matrix.operatingSystems).toEqual(['ubuntu-latest'])
+      expect(matrix.nodeVersions).toEqual([])
+      expect(matrix.totalCombinations).toBe(0)
+    })
+
+    it('should handle action config without inputs', () => {
+      const config = {
+        name: 'Test',
+        description: 'Test',
+        runs: {
+          using: 'composite',
+          steps: [{
+            name: 'Test step',
+            shell: 'bash',
+            run: 'echo test'
+          }]
+        }
+      }
+      
+      const inputs = parser.extractActionInputs(config as any)
+      expect(inputs).toEqual([])
+    })
+
     it('should detect hardcoded secrets in action', () => {
       const config = {
         name: 'Test',
