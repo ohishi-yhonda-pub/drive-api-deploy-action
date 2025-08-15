@@ -134,37 +134,30 @@ runs:
         
         # Create Pull Request using GitHub CLI
         echo "Creating pull request..."
-        cd ..
-        git clone https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git public-pr
-        cd public-pr
-        
-        # Install GitHub CLI if not available
-        if ! command -v gh &> /dev/null; then
-          echo "Installing GitHub CLI..."
-          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-          sudo apt update
-          sudo apt install gh -y
-        fi
         
         # Configure GitHub CLI
         export GH_TOKEN=${{ inputs.public-repo-token }}
         
-        # Create PR
+        # Create PR directly without cloning
         PR_URL=$(gh pr create --repo ${{ inputs.public-repo }} \
           --base main \
           --head $BRANCH_NAME \
           --title "Deploy from private repository: $ORIGINAL_MSG" \
-          --body "Automated deployment from private repository.\n\nOriginal commit message:\n$ORIGINAL_MSG" \
-          --draft=false)
+          --body "$(echo -e "Automated deployment from private repository.\n\nOriginal commit message:\n$ORIGINAL_MSG")" || echo "PR_CREATION_FAILED")
         
-        echo "Pull request created: $PR_URL"
-        
-        # Auto-merge the PR
-        echo "Auto-merging pull request..."
-        gh pr merge "$PR_URL" --repo ${{ inputs.public-repo }} --merge --delete-branch
-        
-        echo "Pull request merged successfully!"
+        if [ "$PR_URL" = "PR_CREATION_FAILED" ]; then
+          echo "Failed to create PR. Checking if branch was pushed successfully..."
+          echo "You may need to create the PR manually at: https://github.com/${{ inputs.public-repo }}/pull/new/$BRANCH_NAME"
+          echo "Continuing with GitHub Pages deployment..."
+        else
+          echo "Pull request created: $PR_URL"
+          
+          # Auto-merge the PR
+          echo "Auto-merging pull request..."
+          gh pr merge "$PR_URL" --repo ${{ inputs.public-repo }} --merge --delete-branch || echo "Auto-merge failed. Please merge manually."
+          
+          echo "Pull request process completed!"
+        fi
         
         # Deploy to GitHub Pages directly from private repository
         cd ..
@@ -318,36 +311,33 @@ runs:
         
         # Create Pull Request using GitHub CLI
         Write-Host "Creating pull request..."
-        cd ..
-        git clone https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git public-pr
-        cd public-pr
-        
-        # Install GitHub CLI if not available
-        if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
-          Write-Host "Installing GitHub CLI..."
-          winget install --id GitHub.cli --accept-source-agreements --accept-package-agreements
-          # Refresh PATH
-          $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
-        }
         
         # Configure GitHub CLI
         $env:GH_TOKEN = "${{ inputs.public-repo-token }}"
         
-        # Create PR
-        $prOutput = gh pr create --repo ${{ inputs.public-repo }} `
-          --base main `
-          --head $branchName `
-          --title "Deploy from private repository: $originalMsg" `
-          --body "Automated deployment from private repository.`n`nOriginal commit message:`n$originalMsg" `
-          --draft=false
-        
-        Write-Host "Pull request created: $prOutput"
-        
-        # Auto-merge the PR
-        Write-Host "Auto-merging pull request..."
-        gh pr merge $prOutput --repo ${{ inputs.public-repo }} --merge --delete-branch
-        
-        Write-Host "Pull request merged successfully!"
+        # Create PR directly without cloning
+        try {
+          $prOutput = gh pr create --repo ${{ inputs.public-repo }} `
+            --base main `
+            --head $branchName `
+            --title "Deploy from private repository: $originalMsg" `
+            --body "Automated deployment from private repository.`n`nOriginal commit message:`n$originalMsg" 2>&1
+          
+          Write-Host "Pull request created: $prOutput"
+          
+          # Auto-merge the PR
+          Write-Host "Auto-merging pull request..."
+          try {
+            gh pr merge $prOutput --repo ${{ inputs.public-repo }} --merge --delete-branch
+            Write-Host "Pull request merged successfully!"
+          } catch {
+            Write-Host "Auto-merge failed. Please merge manually."
+          }
+        } catch {
+          Write-Host "Failed to create PR. Checking if branch was pushed successfully..."
+          Write-Host "You may need to create the PR manually at: https://github.com/${{ inputs.public-repo }}/pull/new/$branchName"
+          Write-Host "Continuing with GitHub Pages deployment..."
+        }
         
         # Deploy to GitHub Pages directly from private repository
         cd ..
