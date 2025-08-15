@@ -146,13 +146,11 @@ runs:
           echo "No changes detected. Adding deployment timestamp..."
           # Force a change by adding/updating deployment info
           TIMESTAMP=$(date "+%Y-%m-%d %H:%M:%S")
-          cat > DEPLOY_INFO.md << EOF
-# Last deployment
-
-Deployed from private repository
-Timestamp: $TIMESTAMP
-Commit: $ORIGINAL_MSG
-EOF
+          echo "# Last deployment" > DEPLOY_INFO.md
+          echo "" >> DEPLOY_INFO.md
+          echo "Deployed from private repository" >> DEPLOY_INFO.md
+          echo "Timestamp: $TIMESTAMP" >> DEPLOY_INFO.md
+          echo "Commit: $ORIGINAL_MSG" >> DEPLOY_INFO.md
           git add DEPLOY_INFO.md
         fi
         
