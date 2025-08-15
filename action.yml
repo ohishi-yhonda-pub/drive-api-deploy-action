@@ -143,10 +143,17 @@ runs:
         
         # Check if there are files to commit
         if git diff --cached --quiet; then
-          echo "No files to commit. Repository might be empty."
-          # Force add at least one file
-          echo "# Deployed from private repository" > README.md
-          git add README.md
+          echo "No changes detected. Adding deployment timestamp..."
+          # Force a change by adding/updating deployment info
+          TIMESTAMP=$(date "+%Y-%m-%d %H:%M:%S")
+          cat > DEPLOY_INFO.md << EOF
+# Last deployment
+
+Deployed from private repository
+Timestamp: $TIMESTAMP
+Commit: $ORIGINAL_MSG
+EOF
+          git add DEPLOY_INFO.md
         fi
         
         # Commit with original message
@@ -342,10 +349,13 @@ runs:
         # Check if there are files to commit
         $hasChanges = git diff --cached --quiet; $lastExitCode -ne 0
         if (-not $hasChanges) {
-          Write-Host "No files to commit. Repository might be empty."
-          # Force add at least one file
-          "# Deployed from private repository" | Out-File README.md
-          git add README.md
+          Write-Host "No changes detected. Adding deployment timestamp..."
+          # Force a change by adding/updating deployment info
+          $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+          $deployInfo = "# Last deployment`n`nDeployed from private repository`nTimestamp: $timestamp`nCommit: $originalMsg"
+          $deployInfo | Out-File DEPLOY_INFO.md
+          git add DEPLOY_INFO.md
+          $hasChanges = $true
         }
         
         # Commit with original message
