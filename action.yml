@@ -318,7 +318,7 @@ runs:
         }
         
         # Commit with original message
-        git commit -m $originalMsg
+        git commit -m "$originalMsg"
         
         # Push to a new branch in public repository
         Write-Host "Pushing to a new branch in public repository..."
