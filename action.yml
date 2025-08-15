@@ -123,6 +123,14 @@ runs:
         # Add all files (sensitive files and .github already removed)
         git add -A
         
+        # Check if there are files to commit
+        if git diff --cached --quiet; then
+          echo "No files to commit. Repository might be empty."
+          # Force add at least one file
+          echo "# Deployed from private repository" > README.md
+          git add README.md
+        fi
+        
         # Commit with original message
         git commit -m "$ORIGINAL_MSG"
         
@@ -299,6 +307,15 @@ runs:
         
         # Add all files (sensitive files and .github already removed)
         git add -A
+        
+        # Check if there are files to commit
+        $hasChanges = git diff --cached --quiet; $lastExitCode -ne 0
+        if (-not $hasChanges) {
+          Write-Host "No files to commit. Repository might be empty."
+          # Force add at least one file
+          "# Deployed from private repository" | Out-File README.md
+          git add README.md
+        }
         
         # Commit with original message
         git commit -m $originalMsg
