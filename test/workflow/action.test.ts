@@ -148,13 +148,21 @@ describe('GitHub Action Workflow', () => {
       expect(powershellStep.run).toMatch(/filter=git-crypt/)
     })
 
-    it('should push to main branch after removing sensitive files', () => {
+    it('should create PR instead of pushing to main branch after removing sensitive files', () => {
       const bashStep = actionConfig.runs.steps[1]
       const powershellStep = actionConfig.runs.steps[2]
 
-      // Check that sensitive files are removed before pushing to main
-      expect(bashStep.run).toMatch(/# Remove sensitive files[\s\S]*git push public temp-deploy:main --force/)
-      expect(powershellStep.run).toMatch(/# Remove sensitive files[\s\S]*git push public temp-deploy:main --force/)
+      // Check that sensitive files are removed before creating PR
+      expect(bashStep.run).toMatch(/# Remove sensitive files[\s\S]*git push public temp-deploy:\$BRANCH_NAME --force/)
+      expect(powershellStep.run).toMatch(/# Remove sensitive files[\s\S]*git push public temp-deploy:\$branchName --force/)
+      
+      // Check that PR is created
+      expect(bashStep.run).toMatch(/gh pr create --repo/)
+      expect(powershellStep.run).toMatch(/gh pr create --repo/)
+      
+      // Check that PR is auto-merged
+      expect(bashStep.run).toMatch(/gh pr merge/)
+      expect(powershellStep.run).toMatch(/gh pr merge/)
       
       // Check that orphan branch is created to avoid action history
       expect(bashStep.run).toMatch(/git checkout --orphan temp-deploy/)
