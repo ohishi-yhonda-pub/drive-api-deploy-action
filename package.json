@@ -1,0 +1,19 @@
+{
+  "name": "drive-api-deploy-action",
+  "version": "1.0.0",
+  "description": "GitHub Action for deploying Drive API",
+  "scripts": {
+    "test": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.2.1",
+    "@types/yaml": "^1.9.6",
+    "@vitest/coverage-v8": "^3.2.4",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4",
+    "yaml": "^2.8.1"
+  }
+}

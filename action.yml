@@ -1,0 +1,378 @@
+name: 'Drive API Deploy Action'
+description: 'Deploy Drive API to public repository and GitHub Pages with OpenAPI generation and coverage reports'
+author: 'ohishi-yhonda-org'
+
+inputs:
+  github-token:
+    description: 'GitHub token for accessing private repository'
+    required: true
+  public-repo-token:
+    description: 'GitHub token for accessing public repository'
+    required: true
+  private-repo:
+    description: 'Private repository (owner/repo)'
+    required: true
+  public-repo:
+    description: 'Public repository (owner/repo)'
+    required: true
+  wrangler-port:
+    description: 'Port for Wrangler dev server'
+    required: false
+    default: '8787'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Check bash availability
+      id: check-bash
+      shell: powershell
+      run: |
+        try {
+          $bashPath = (Get-Command bash -ErrorAction Stop).Source
+          Write-Host "Bash found at: $bashPath"
+          echo "bash_available=true" >> $env:GITHUB_OUTPUT
+        } catch {
+          Write-Host "Bash not found, will use PowerShell"
+          echo "bash_available=false" >> $env:GITHUB_OUTPUT
+        }
+    
+    - name: Process and Deploy (Bash)
+      if: steps.check-bash.outputs.bash_available == 'true'
+      shell: bash
+      run: |
+        # Create temp directory
+        tempDir="/tmp/deploy-$(date +%Y%m%d%H%M%S)"
+        mkdir -p "$tempDir"
+        cd "$tempDir"
+        
+        # Clone private repository
+        git clone https://x-access-token:${{ inputs.github-token }}@github.com/${{ inputs.private-repo }}.git private
+        cd private
+        
+        # Install dependencies
+        npm install
+        
+        # Check if wrangler.toml or wrangler.json or wrangler.jsonc exists
+        if [ -f wrangler.toml ] || [ -f wrangler.json ] || [ -f wrangler.jsonc ]; then
+          echo "Wrangler configuration found, generating OpenAPI specification..."
+          
+          # Copy template for Wrangler
+          if [ -f .dev.vars.template ]; then
+            cp .dev.vars.template .dev.vars
+          fi
+          
+          # Start Wrangler and generate OpenAPI
+          npx wrangler dev --port ${{ inputs.wrangler-port }} --local &
+          wranglerPID=$!
+          sleep 5
+          
+          # Wait for server and fetch OpenAPI
+          maxAttempts=30
+          for i in $(seq 1 $maxAttempts); do
+            if curl -s http://localhost:${{ inputs.wrangler-port }}/specification > docs/openapi.json; then
+              echo "OpenAPI specification generated"
+              break
+            fi
+            if [ $i -eq $maxAttempts ]; then
+              echo "Warning: Wrangler failed to start after $maxAttempts attempts"
+              echo "Continuing without OpenAPI specification..."
+              break
+            fi
+            sleep 2
+          done
+          
+          # Stop Wrangler
+          kill $wranglerPID || true
+          rm -f .dev.vars
+        else
+          echo "No wrangler.toml or wrangler.json or wrangler.jsonc found, skipping OpenAPI generation"
+          # Create docs directory if it doesn't exist
+          mkdir -p docs
+        fi
+        
+        # Run tests and generate coverage
+        npm run test:coverage
+        
+        # Remove sensitive files
+        if [ -f .gitattributes ]; then
+          while IFS= read -r line; do
+            if [[ $line =~ ^([^[:space:]]+)[[:space:]]+filter=git-crypt ]]; then
+              file="${BASH_REMATCH[1]}"
+              [ -f "$file" ] && rm -f "$file"
+            fi
+          done < .gitattributes
+          rm -f .gitattributes
+        fi
+        
+        # Configure git for commit
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git config user.name "github-actions[bot]"
+        
+        # Get original commit message
+        ORIGINAL_MSG=$(git log -1 --pretty=%B)
+        
+        # Create a new orphan branch to avoid action history
+        git checkout --orphan temp-deploy
+        
+        # Remove .github directory to prevent duplicate workflow execution
+        echo "Checking .github directory before removal..."
+        ls -la .github || echo ".github directory not found"
+        rm -rf .github
+        echo ".github directory removed"
+        
+        # Add all files (sensitive files and .github already removed)
+        git add -A
+        
+        # Commit with original message
+        git commit -m "$ORIGINAL_MSG"
+        
+        # Push to a new branch in public repository
+        echo "Pushing to a new branch in public repository..."
+        git remote add public https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git
+        BRANCH_NAME="deploy-$(date +%Y%m%d%H%M%S)"
+        git push public temp-deploy:$BRANCH_NAME --force
+        
+        # Create Pull Request using GitHub CLI
+        echo "Creating pull request..."
+        
+        # Configure GitHub CLI
+        export GH_TOKEN=${{ inputs.public-repo-token }}
+        
+        # Create PR directly without cloning
+        PR_URL=$(gh pr create --repo ${{ inputs.public-repo }} \
+          --base main \
+          --head $BRANCH_NAME \
+          --title "Deploy from private repository: $ORIGINAL_MSG" \
+          --body "$(echo -e "Automated deployment from private repository.\n\nOriginal commit message:\n$ORIGINAL_MSG")" || echo "PR_CREATION_FAILED")
+        
+        if [ "$PR_URL" = "PR_CREATION_FAILED" ]; then
+          echo "Failed to create PR. Checking if branch was pushed successfully..."
+          echo "You may need to create the PR manually at: https://github.com/${{ inputs.public-repo }}/pull/new/$BRANCH_NAME"
+          echo "Continuing with GitHub Pages deployment..."
+        else
+          echo "Pull request created: $PR_URL"
+          
+          # Auto-merge the PR
+          echo "Auto-merging pull request..."
+          gh pr merge "$PR_URL" --repo ${{ inputs.public-repo }} --merge --delete-branch || echo "Auto-merge failed. Please merge manually."
+          
+          echo "Pull request process completed!"
+        fi
+        
+        # Deploy to GitHub Pages directly from private repository
+        cd ..
+        git clone https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git public
+        cd public
+        
+        # Checkout gh-pages branch
+        git checkout gh-pages 2>/dev/null || git checkout --orphan gh-pages
+        
+        # Clear existing content
+        find . -maxdepth 1 -name .git -prune -o -exec rm -rf {} + 2>/dev/null || true
+        
+        # Copy new content
+        if [ -d ../private/docs ] && [ "$(ls -A ../private/docs)" ]; then
+          cp -r ../private/docs/* .
+          cp -r ../private/coverage .
+        else
+          # If no docs (Swagger/OpenAPI), use coverage as root
+          cp -r ../private/coverage/* .
+        fi
+        
+        # Configure git
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git config user.name "github-actions[bot]"
+        
+        # Commit and push
+        git add -A
+        git commit -m "Deploy to GitHub Pages"
+        git push origin gh-pages --force
+        
+        # Cleanup
+        cd /tmp
+        rm -rf "$tempDir"
+    
+    - name: Process and Deploy (PowerShell)
+      if: steps.check-bash.outputs.bash_available == 'false'
+      shell: powershell
+      run: |
+        # Add Git and Node.js to PATH
+        $env:PATH = "C:\Program Files\Git\cmd;C:\Program Files\nodejs;$env:PATH"
+        
+        # Create temp directory
+        $tempDir = Join-Path $env:TEMP ("deploy-" + (Get-Date -Format "yyyyMMddHHmmss"))
+        New-Item -ItemType Directory -Path $tempDir -Force
+        cd $tempDir
+        
+        # Clone private repository
+        git clone https://x-access-token:${{ inputs.github-token }}@github.com/${{ inputs.private-repo }}.git private
+        cd private
+        
+        # Install dependencies
+        npm install
+        
+        # Check if wrangler.toml or wrangler.json or wrangler.jsonc exists
+        if ((Test-Path wrangler.toml) -or (Test-Path wrangler.json) -or (Test-Path wrangler.jsonc)) {
+          Write-Host "Wrangler configuration found, generating OpenAPI specification..."
+          
+          # Copy template for Wrangler
+          if (Test-Path .dev.vars.template) {
+            Copy-Item .dev.vars.template .dev.vars
+          }
+          
+          # Start Wrangler and generate OpenAPI
+          $wranglerJob = Start-Job -ScriptBlock {
+            param($workDir, $port)
+            Set-Location $workDir
+            npx wrangler dev --port $port --local
+          } -ArgumentList (Get-Location).Path, ${{ inputs.wrangler-port }}
+          Start-Sleep -Seconds 5
+          
+          # Wait for server and fetch OpenAPI
+          $maxAttempts = 30
+          for ($i = 1; $i -le $maxAttempts; $i++) {
+            try {
+              $response = Invoke-WebRequest -Uri "http://localhost:${{ inputs.wrangler-port }}/specification" -UseBasicParsing -ErrorAction Stop
+              $response.Content | Out-File -FilePath docs/openapi.json -Encoding UTF8
+              Write-Host "OpenAPI specification generated"
+              break
+            } catch {
+              if ($i -eq $maxAttempts) {
+                Write-Host "Warning: Wrangler failed to start after $maxAttempts attempts"
+                Write-Host "Continuing without OpenAPI specification..."
+                break
+              }
+              Start-Sleep -Seconds 2
+            }
+          }
+          
+          # Stop Wrangler
+          Stop-Job -Job $wranglerJob -ErrorAction SilentlyContinue
+          Remove-Job -Job $wranglerJob -Force -ErrorAction SilentlyContinue
+          Start-Sleep -Seconds 2
+          Remove-Item .dev.vars -Force -ErrorAction SilentlyContinue
+        } else {
+          Write-Host "No wrangler.toml or wrangler.json found, skipping OpenAPI generation"
+          # Create docs directory if it doesn't exist
+          New-Item -ItemType Directory -Path docs -Force | Out-Null
+        }
+        
+        # Run tests and generate coverage
+        npm run test:coverage
+        
+        # Remove sensitive files
+        $filesToRemove = @()
+        if (Test-Path .gitattributes) {
+          Get-Content .gitattributes | ForEach-Object {
+            if ($_ -match '^(.+?)\s+filter=git-crypt') {
+              $filesToRemove += $matches[1]
+            }
+          }
+        }
+        
+        foreach ($file in $filesToRemove) {
+          if (Test-Path $file) {
+            Remove-Item $file -Force
+          }
+        }
+        Remove-Item .gitattributes -Force -ErrorAction SilentlyContinue
+        
+        # Configure git for commit
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git config user.name "github-actions[bot]"
+        
+        # Get original commit message
+        $originalMsg = git log -1 --pretty=%B
+        
+        # Create a new orphan branch to avoid action history
+        git checkout --orphan temp-deploy
+        
+        # Remove .github directory to prevent duplicate workflow execution
+        Write-Host "Checking .github directory before removal..."
+        if (Test-Path .github) {
+          Get-ChildItem .github -Force | Format-List
+          Remove-Item .github -Recurse -Force -ErrorAction SilentlyContinue
+          Write-Host ".github directory removed"
+        } else {
+          Write-Host ".github directory not found"
+        }
+        
+        # Add all files (sensitive files and .github already removed)
+        git add -A
+        
+        # Commit with original message
+        git commit -m $originalMsg
+        
+        # Push to a new branch in public repository
+        Write-Host "Pushing to a new branch in public repository..."
+        git remote add public https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git
+        $branchName = "deploy-" + (Get-Date -Format "yyyyMMddHHmmss")
+        git push public temp-deploy:$branchName --force
+        
+        # Create Pull Request using GitHub CLI
+        Write-Host "Creating pull request..."
+        
+        # Configure GitHub CLI
+        $env:GH_TOKEN = "${{ inputs.public-repo-token }}"
+        
+        # Create PR directly without cloning
+        try {
+          $prOutput = gh pr create --repo ${{ inputs.public-repo }} `
+            --base main `
+            --head $branchName `
+            --title "Deploy from private repository: $originalMsg" `
+            --body "Automated deployment from private repository.`n`nOriginal commit message:`n$originalMsg" 2>&1
+          
+          Write-Host "Pull request created: $prOutput"
+          
+          # Auto-merge the PR
+          Write-Host "Auto-merging pull request..."
+          try {
+            gh pr merge $prOutput --repo ${{ inputs.public-repo }} --merge --delete-branch
+            Write-Host "Pull request merged successfully!"
+          } catch {
+            Write-Host "Auto-merge failed. Please merge manually."
+          }
+        } catch {
+          Write-Host "Failed to create PR. Checking if branch was pushed successfully..."
+          Write-Host "You may need to create the PR manually at: https://github.com/${{ inputs.public-repo }}/pull/new/$branchName"
+          Write-Host "Continuing with GitHub Pages deployment..."
+        }
+        
+        # Deploy to GitHub Pages directly from private repository
+        cd ..
+        git clone https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git public
+        cd public
+        
+        # Checkout gh-pages branch
+        try {
+          git checkout gh-pages 2>$null
+        } catch {
+          git checkout --orphan gh-pages
+        }
+        
+        # Clear existing content
+        Get-ChildItem -Force | Where-Object { $_.Name -ne '.git' } | Remove-Item -Recurse -Force
+        
+        # Copy new content
+        if ((Test-Path ../private/docs) -and (Get-ChildItem ../private/docs -Force)) {
+          Copy-Item -Recurse ../private/docs/* .
+          Copy-Item -Recurse ../private/coverage .
+        } else {
+          # If no docs (Swagger/OpenAPI), use coverage as root
+          Copy-Item -Recurse ../private/coverage/* .
+        }
+        
+        # Configure git
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git config user.name "github-actions[bot]"
+        
+        # Commit and push
+        git add -A
+        git commit -m "Deploy to GitHub Pages"
+        git push origin gh-pages --force
+        
+        # Cleanup
+        cd $env:TEMP
+        Start-Sleep -Seconds 3
+        Remove-Item -Recurse -Force $tempDir -ErrorAction SilentlyContinue
