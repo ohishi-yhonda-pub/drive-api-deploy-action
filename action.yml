@@ -108,8 +108,8 @@ runs:
         git config user.email "github-actions[bot]@users.noreply.github.com"
         git config user.name "github-actions[bot]"
         
-        # Get original commit message
-        ORIGINAL_MSG=$(git log -1 --pretty=%B)
+        # Get original commit message (single line to avoid issues)
+        ORIGINAL_MSG=$(git log -1 --pretty=%s)
         
         # Create a new orphan branch to avoid action history
         git checkout --orphan temp-deploy
@@ -122,6 +122,14 @@ runs:
         
         # Add all files (sensitive files and .github already removed)
         git add -A
+        
+        # Check if there are files to commit
+        if git diff --cached --quiet; then
+          echo "No files to commit. Repository might be empty."
+          # Force add at least one file
+          echo "# Deployed from private repository" > README.md
+          git add README.md
+        fi
         
         # Commit with original message
         git commit -m "$ORIGINAL_MSG"
@@ -281,8 +289,8 @@ runs:
         git config user.email "github-actions[bot]@users.noreply.github.com"
         git config user.name "github-actions[bot]"
         
-        # Get original commit message
-        $originalMsg = git log -1 --pretty=%B
+        # Get original commit message (single line to avoid issues)
+        $originalMsg = git log -1 --pretty=%s
         
         # Create a new orphan branch to avoid action history
         git checkout --orphan temp-deploy
@@ -300,8 +308,17 @@ runs:
         # Add all files (sensitive files and .github already removed)
         git add -A
         
+        # Check if there are files to commit
+        $hasChanges = git diff --cached --quiet; $lastExitCode -ne 0
+        if (-not $hasChanges) {
+          Write-Host "No files to commit. Repository might be empty."
+          # Force add at least one file
+          "# Deployed from private repository" | Out-File README.md
+          git add README.md
+        }
+        
         # Commit with original message
-        git commit -m $originalMsg
+        git commit -m "$originalMsg"
         
         # Push to a new branch in public repository
         Write-Host "Pushing to a new branch in public repository..."
