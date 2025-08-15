@@ -111,16 +111,34 @@ runs:
         # Get original commit message (single line to avoid issues)
         ORIGINAL_MSG=$(git log -1 --pretty=%s)
         
-        # Create a new orphan branch to avoid action history
-        git checkout --orphan temp-deploy
+        # Clone public repository to ensure common history
+        cd ..
+        echo "Cloning public repository to create branch with common history..."
+        git clone https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git public-temp
+        cd public-temp
         
-        # Remove .github directory to prevent duplicate workflow execution
-        echo "Checking .github directory before removal..."
-        ls -la .github || echo ".github directory not found"
+        # Configure git
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git config user.name "github-actions[bot]"
+        
+        # Create branch name
+        BRANCH_NAME="deploy-$(date +%Y%m%d%H%M%S)"
+        
+        # Create a new branch from main
+        git checkout -b $BRANCH_NAME
+        
+        # Remove all existing files (except .git)
+        find . -maxdepth 1 -name .git -prune -o -exec rm -rf {} + 2>/dev/null || true
+        
+        # Copy files from private repo (excluding .git, .github and sensitive files)
+        echo "Copying files from private repository..."
+        cp -r ../private/* . 2>/dev/null || true
+        cp -r ../private/.[^.]* . 2>/dev/null || true
+        
+        # Remove .github directory if it was copied
         rm -rf .github
-        echo ".github directory removed"
         
-        # Add all files (sensitive files and .github already removed)
+        # Add all files
         git add -A
         
         # Check if there are files to commit
@@ -134,11 +152,9 @@ runs:
         # Commit with original message
         git commit -m "$ORIGINAL_MSG"
         
-        # Push to a new branch in public repository
-        echo "Pushing to a new branch in public repository..."
-        git remote add public https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git
-        BRANCH_NAME="deploy-$(date +%Y%m%d%H%M%S)"
-        git push public temp-deploy:$BRANCH_NAME --force
+        # Push to the new branch
+        echo "Pushing to branch: $BRANCH_NAME"
+        git push origin $BRANCH_NAME
         
         # Create Pull Request using GitHub CLI
         echo "Creating pull request..."
@@ -292,20 +308,35 @@ runs:
         # Get original commit message (single line to avoid issues)
         $originalMsg = git log -1 --pretty=%s
         
-        # Create a new orphan branch to avoid action history
-        git checkout --orphan temp-deploy
+        # Clone public repository to ensure common history
+        cd ..
+        Write-Host "Cloning public repository to create branch with common history..."
+        git clone https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git public-temp
+        cd public-temp
         
-        # Remove .github directory to prevent duplicate workflow execution
-        Write-Host "Checking .github directory before removal..."
+        # Configure git
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git config user.name "github-actions[bot]"
+        
+        # Create branch name
+        $branchName = "deploy-" + (Get-Date -Format "yyyyMMddHHmmss")
+        
+        # Create a new branch from main
+        git checkout -b $branchName
+        
+        # Remove all existing files (except .git)
+        Get-ChildItem -Force | Where-Object { $_.Name -ne '.git' } | Remove-Item -Recurse -Force
+        
+        # Copy files from private repo (excluding .git, .github and sensitive files)
+        Write-Host "Copying files from private repository..."
+        Copy-Item -Path ../private/* -Destination . -Recurse -Force -Exclude .git
+        
+        # Remove .github directory if it was copied
         if (Test-Path .github) {
-          Get-ChildItem .github -Force | Format-List
-          Remove-Item .github -Recurse -Force -ErrorAction SilentlyContinue
-          Write-Host ".github directory removed"
-        } else {
-          Write-Host ".github directory not found"
+          Remove-Item .github -Recurse -Force
         }
         
-        # Add all files (sensitive files and .github already removed)
+        # Add all files
         git add -A
         
         # Check if there are files to commit
@@ -320,11 +351,9 @@ runs:
         # Commit with original message
         git commit -m "$originalMsg"
         
-        # Push to a new branch in public repository
-        Write-Host "Pushing to a new branch in public repository..."
-        git remote add public https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git
-        $branchName = "deploy-" + (Get-Date -Format "yyyyMMddHHmmss")
-        git push public temp-deploy:$branchName --force
+        # Push to the new branch
+        Write-Host "Pushing to branch: $branchName"
+        git push origin $branchName
         
         # Create Pull Request using GitHub API
         Write-Host "Creating pull request..."
