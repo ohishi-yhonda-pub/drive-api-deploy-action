@@ -92,7 +92,8 @@ describe('GitHub Action Workflow', () => {
       const powershellStep = actionConfig.runs.steps[2]
 
       expect(bashStep.run).toMatch(/x-access-token:\$\{\{ inputs\.github-token \}\}/)
-      expect(powershellStep.run).toMatch(/x-access-token:\$\{\{ inputs\.public-repo-token \}\}/)
+      // PowerShell uses variable substitution pattern
+      expect(powershellStep.run).toMatch(/x-access-token:\${token}|x-access-token:\${publicToken}/)
     })
 
     it('should clean up temporary files and directories', () => {

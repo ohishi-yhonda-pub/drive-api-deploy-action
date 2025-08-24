@@ -234,7 +234,10 @@ runs:
         cd $tempDir
         
         # Clone private repository
-        $privateRepoUrl = "https://x-access-token:${{ inputs.github-token }}@github.com/${{ inputs.private-repo }}.git"
+        $token = "${{ inputs.github-token }}".Trim()
+        $repo = "${{ inputs.private-repo }}".Trim()
+        $privateRepoUrl = "https://x-access-token:${token}@github.com/${repo}.git"
+        Write-Host "Cloning private repository..."
         git clone $privateRepoUrl private
         cd private
         
@@ -317,7 +320,9 @@ runs:
         # Clone public repository to ensure common history
         cd ..
         Write-Host "Cloning public repository to create branch with common history..."
-        $publicRepoUrl = "https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git"
+        $publicToken = "${{ inputs.public-repo-token }}".Trim()
+        $publicRepo = "${{ inputs.public-repo }}".Trim()
+        $publicRepoUrl = "https://x-access-token:${publicToken}@github.com/${publicRepo}.git"
         git clone $publicRepoUrl public-temp
         cd public-temp
         
@@ -416,7 +421,9 @@ runs:
         
         # Deploy to GitHub Pages directly from private repository
         cd ..
-        $publicRepoUrl2 = "https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git"
+        $publicToken2 = "${{ inputs.public-repo-token }}".Trim()
+        $publicRepo2 = "${{ inputs.public-repo }}".Trim()
+        $publicRepoUrl2 = "https://x-access-token:${publicToken2}@github.com/${publicRepo2}.git"
         git clone $publicRepoUrl2 public
         cd public
         
