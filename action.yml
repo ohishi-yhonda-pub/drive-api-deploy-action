@@ -46,7 +46,7 @@ runs:
         cd "$tempDir"
         
         # Clone private repository
-        git clone https://x-access-token:${{ inputs.github-token }}@github.com/${{ inputs.private-repo }}.git private
+        git clone "https://x-access-token:${{ inputs.github-token }}@github.com/${{ inputs.private-repo }}.git" private
         cd private
         
         # Install dependencies
@@ -114,7 +114,7 @@ runs:
         # Clone public repository to ensure common history
         cd ..
         echo "Cloning public repository to create branch with common history..."
-        git clone https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git public-temp
+        git clone "https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git" public-temp
         cd public-temp
         
         # Configure git
@@ -190,7 +190,7 @@ runs:
         
         # Deploy to GitHub Pages directly from private repository
         cd ..
-        git clone https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git public
+        git clone "https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git" public
         cd public
         
         # Checkout gh-pages branch
@@ -234,7 +234,7 @@ runs:
         cd $tempDir
         
         # Clone private repository
-        git clone https://x-access-token:${{ inputs.github-token }}@github.com/${{ inputs.private-repo }}.git private
+        git clone "https://x-access-token:${{ inputs.github-token }}@github.com/${{ inputs.private-repo }}.git" private
         cd private
         
         # Install dependencies
@@ -316,7 +316,7 @@ runs:
         # Clone public repository to ensure common history
         cd ..
         Write-Host "Cloning public repository to create branch with common history..."
-        git clone https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git public-temp
+        git clone "https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git" public-temp
         cd public-temp
         
         # Configure git
@@ -414,7 +414,7 @@ runs:
         
         # Deploy to GitHub Pages directly from private repository
         cd ..
-        git clone https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git public
+        git clone "https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git" public
         cd public
         
         # Checkout gh-pages branch

@@ -152,25 +152,31 @@ describe('GitHub Action Workflow', () => {
       const bashStep = actionConfig.runs.steps[1]
       const powershellStep = actionConfig.runs.steps[2]
 
-      // Check that sensitive files are removed before creating PR
-      expect(bashStep.run).toMatch(/# Remove sensitive files[\s\S]*git push public temp-deploy:\$BRANCH_NAME --force/)
-      expect(powershellStep.run).toMatch(/# Remove sensitive files[\s\S]*git push public temp-deploy:\$branchName --force/)
+      // Check that sensitive files are removed
+      expect(bashStep.run).toMatch(/# Remove sensitive files/)
+      expect(powershellStep.run).toMatch(/# Remove sensitive files/)
+      
+      // Check that it creates a branch with common history (not orphan)
+      expect(bashStep.run).toMatch(/# Create a new branch from main/)
+      expect(bashStep.run).toMatch(/git checkout -b \$BRANCH_NAME/)
+      expect(powershellStep.run).toMatch(/# Create a new branch from main/)
+      expect(powershellStep.run).toMatch(/git checkout -b \$branchName/)
+      
+      // Check that it pushes to origin (not the old pattern)
+      expect(bashStep.run).toMatch(/git push origin \$BRANCH_NAME/)
+      expect(powershellStep.run).toMatch(/git push origin \$branchName/)
       
       // Check that PR is created
       expect(bashStep.run).toMatch(/gh pr create --repo/)
-      expect(powershellStep.run).toMatch(/gh pr create --repo/)
+      expect(powershellStep.run).toMatch(/Invoke-RestMethod -Uri .* -Method Post/)
       
       // Check that PR is auto-merged
       expect(bashStep.run).toMatch(/gh pr merge/)
-      expect(powershellStep.run).toMatch(/gh pr merge/)
-      
-      // Check that orphan branch is created to avoid action history
-      expect(bashStep.run).toMatch(/git checkout --orphan temp-deploy/)
-      expect(powershellStep.run).toMatch(/git checkout --orphan temp-deploy/)
+      expect(powershellStep.run).toMatch(/Invoke-RestMethod -Uri .* -Method Put/)
       
       // Check that original commit message is preserved
       expect(bashStep.run).toMatch(/git commit -m "\$ORIGINAL_MSG"/)
-      expect(powershellStep.run).toMatch(/git commit -m \$originalMsg/)
+      expect(powershellStep.run).toMatch(/git commit -m "\$originalMsg"/)
     })
 
     it('should deploy to GitHub Pages', () => {
