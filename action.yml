@@ -85,38 +85,41 @@ runs:
           kill $wranglerPID || true
           rm -f .dev.vars
           
-          # Generate Swagger UI index.html
+          # Generate Swagger UI in doc directory and move openapi.json to specification
           if [ -f docs/openapi.json ]; then
-            echo '<!DOCTYPE html>' > docs/index.html
-            echo '<html lang="en">' >> docs/index.html
-            echo '<head>' >> docs/index.html
-            echo '    <meta charset="UTF-8">' >> docs/index.html
-            echo '    <title>API Documentation</title>' >> docs/index.html
-            echo '    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css">' >> docs/index.html
-            echo '</head>' >> docs/index.html
-            echo '<body>' >> docs/index.html
-            echo '    <div id="swagger-ui"></div>' >> docs/index.html
-            echo '    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>' >> docs/index.html
-            echo '    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-standalone-preset.js"></script>' >> docs/index.html
-            echo '    <script>' >> docs/index.html
-            echo '        window.onload = function() {' >> docs/index.html
-            echo '            window.ui = SwaggerUIBundle({' >> docs/index.html
-            echo '                url: "./openapi.json",' >> docs/index.html
-            echo "                dom_id: '#swagger-ui'," >> docs/index.html
-            echo '                deepLinking: true,' >> docs/index.html
-            echo '                presets: [' >> docs/index.html
-            echo '                    SwaggerUIBundle.presets.apis,' >> docs/index.html
-            echo '                    SwaggerUIStandalonePreset' >> docs/index.html
-            echo '                ],' >> docs/index.html
-            echo '                plugins: [' >> docs/index.html
-            echo '                    SwaggerUIBundle.plugins.DownloadUrl' >> docs/index.html
-            echo '                ],' >> docs/index.html
-            echo '                layout: "StandaloneLayout"' >> docs/index.html
-            echo '            });' >> docs/index.html
-            echo '        };' >> docs/index.html
-            echo '    </script>' >> docs/index.html
-            echo '</body>' >> docs/index.html
-            echo '</html>' >> docs/index.html
+            mkdir -p docs/doc
+            mkdir -p docs/specification
+            mv docs/openapi.json docs/specification/
+            echo '<!DOCTYPE html>' > docs/doc/index.html
+            echo '<html lang="en">' >> docs/doc/index.html
+            echo '<head>' >> docs/doc/index.html
+            echo '    <meta charset="UTF-8">' >> docs/doc/index.html
+            echo '    <title>API Documentation</title>' >> docs/doc/index.html
+            echo '    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css">' >> docs/doc/index.html
+            echo '</head>' >> docs/doc/index.html
+            echo '<body>' >> docs/doc/index.html
+            echo '    <div id="swagger-ui"></div>' >> docs/doc/index.html
+            echo '    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>' >> docs/doc/index.html
+            echo '    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-standalone-preset.js"></script>' >> docs/doc/index.html
+            echo '    <script>' >> docs/doc/index.html
+            echo '        window.onload = function() {' >> docs/doc/index.html
+            echo '            window.ui = SwaggerUIBundle({' >> docs/doc/index.html
+            echo '                url: "../specification/openapi.json",' >> docs/doc/index.html
+            echo "                dom_id: '#swagger-ui'," >> docs/doc/index.html
+            echo '                deepLinking: true,' >> docs/doc/index.html
+            echo '                presets: [' >> docs/doc/index.html
+            echo '                    SwaggerUIBundle.presets.apis,' >> docs/doc/index.html
+            echo '                    SwaggerUIStandalonePreset' >> docs/doc/index.html
+            echo '                ],' >> docs/doc/index.html
+            echo '                plugins: [' >> docs/doc/index.html
+            echo '                    SwaggerUIBundle.plugins.DownloadUrl' >> docs/doc/index.html
+            echo '                ],' >> docs/doc/index.html
+            echo '                layout: "StandaloneLayout"' >> docs/doc/index.html
+            echo '            });' >> docs/doc/index.html
+            echo '        };' >> docs/doc/index.html
+            echo '    </script>' >> docs/doc/index.html
+            echo '</body>' >> docs/doc/index.html
+            echo '</html>' >> docs/doc/index.html
           fi
         else
           echo "No wrangler.toml or wrangler.json or wrangler.jsonc found, skipping OpenAPI generation"
@@ -257,7 +260,7 @@ runs:
           echo '    <h1>Project Documentation</h1>' >> index.html
           echo '    <div class="links">' >> index.html
           echo '        <div class="link-item">' >> index.html
-          echo '            <a href="./api.html">📚 API Documentation (Swagger UI)</a>' >> index.html
+          echo '            <a href="./doc/">📚 API Documentation (Swagger UI)</a>' >> index.html
           echo '        </div>' >> index.html
           echo '        <div class="link-item">' >> index.html
           echo '            <a href="./coverage/index.html">📊 Test Coverage Report</a>' >> index.html
@@ -265,18 +268,7 @@ runs:
           echo '    </div>' >> index.html
           echo '</body>' >> index.html
           echo '</html>' >> index.html
-          # Move the existing Swagger UI to api.html if it exists
-          if [ -f openapi.json ]; then
-            # Rename the docs index.html to api.html
-            mv index.html main-index.html
-            # Rename the Swagger UI to api.html
-            if [ -f docs/index.html ]; then
-              cp docs/index.html api.html
-            fi
-            # Update link in main index
-            mv main-index.html index.html
-            sed -i 's|"./index.html"|"./api.html"|g' index.html
-          fi
+          # doc and specification directories already created above if openapi.json exists
         else
           # If no docs (Swagger/OpenAPI), use coverage as root
           cp -r ../private/coverage/* .
@@ -359,38 +351,41 @@ runs:
           Start-Sleep -Seconds 2
           Remove-Item .dev.vars -Force -ErrorAction SilentlyContinue
           
-          # Generate Swagger UI index.html
+          # Generate Swagger UI in doc directory and move openapi.json to specification
           if (Test-Path docs/openapi.json) {
-            "<!DOCTYPE html>" | Out-File -FilePath docs/index.html -Encoding UTF8
-            '<html lang="en">' | Out-File -FilePath docs/index.html -Append -Encoding UTF8
-            '<head>' | Out-File -FilePath docs/index.html -Append -Encoding UTF8
-            '    <meta charset="UTF-8">' | Out-File -FilePath docs/index.html -Append -Encoding UTF8
-            '    <title>API Documentation</title>' | Out-File -FilePath docs/index.html -Append -Encoding UTF8
-            '    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css">' | Out-File -FilePath docs/index.html -Append -Encoding UTF8
-            '</head>' | Out-File -FilePath docs/index.html -Append -Encoding UTF8
-            '<body>' | Out-File -FilePath docs/index.html -Append -Encoding UTF8
-            '    <div id="swagger-ui"></div>' | Out-File -FilePath docs/index.html -Append -Encoding UTF8
-            '    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>' | Out-File -FilePath docs/index.html -Append -Encoding UTF8
-            '    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-standalone-preset.js"></script>' | Out-File -FilePath docs/index.html -Append -Encoding UTF8
-            '    <script>' | Out-File -FilePath docs/index.html -Append -Encoding UTF8
-            '        window.onload = function() {' | Out-File -FilePath docs/index.html -Append -Encoding UTF8
-            '            window.ui = SwaggerUIBundle({' | Out-File -FilePath docs/index.html -Append -Encoding UTF8
-            '                url: "./openapi.json",' | Out-File -FilePath docs/index.html -Append -Encoding UTF8
-            "                dom_id: '#swagger-ui'," | Out-File -FilePath docs/index.html -Append -Encoding UTF8
-            '                deepLinking: true,' | Out-File -FilePath docs/index.html -Append -Encoding UTF8
-            '                presets: [' | Out-File -FilePath docs/index.html -Append -Encoding UTF8
-            '                    SwaggerUIBundle.presets.apis,' | Out-File -FilePath docs/index.html -Append -Encoding UTF8
-            '                    SwaggerUIStandalonePreset' | Out-File -FilePath docs/index.html -Append -Encoding UTF8
-            '                ],' | Out-File -FilePath docs/index.html -Append -Encoding UTF8
-            '                plugins: [' | Out-File -FilePath docs/index.html -Append -Encoding UTF8
-            '                    SwaggerUIBundle.plugins.DownloadUrl' | Out-File -FilePath docs/index.html -Append -Encoding UTF8
-            '                ],' | Out-File -FilePath docs/index.html -Append -Encoding UTF8
-            '                layout: "StandaloneLayout"' | Out-File -FilePath docs/index.html -Append -Encoding UTF8
-            '            });' | Out-File -FilePath docs/index.html -Append -Encoding UTF8
-            '        };' | Out-File -FilePath docs/index.html -Append -Encoding UTF8
-            '    </script>' | Out-File -FilePath docs/index.html -Append -Encoding UTF8
-            '</body>' | Out-File -FilePath docs/index.html -Append -Encoding UTF8
-            '</html>' | Out-File -FilePath docs/index.html -Append -Encoding UTF8
+            New-Item -ItemType Directory -Path docs/doc -Force | Out-Null
+            New-Item -ItemType Directory -Path docs/specification -Force | Out-Null
+            Move-Item docs/openapi.json docs/specification/ -Force
+            "<!DOCTYPE html>" | Out-File -FilePath docs/doc/index.html -Encoding UTF8
+            '<html lang="en">' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '<head>' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '    <meta charset="UTF-8">' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '    <title>API Documentation</title>' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css">' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '</head>' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '<body>' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '    <div id="swagger-ui"></div>' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-standalone-preset.js"></script>' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '    <script>' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '        window.onload = function() {' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '            window.ui = SwaggerUIBundle({' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '                url: "../specification/openapi.json",' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            "                dom_id: '#swagger-ui'," | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '                deepLinking: true,' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '                presets: [' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '                    SwaggerUIBundle.presets.apis,' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '                    SwaggerUIStandalonePreset' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '                ],' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '                plugins: [' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '                    SwaggerUIBundle.plugins.DownloadUrl' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '                ],' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '                layout: "StandaloneLayout"' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '            });' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '        };' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '    </script>' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '</body>' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '</html>' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
           }
         } else {
           Write-Host "No wrangler.toml or wrangler.json found, skipping OpenAPI generation"
@@ -569,7 +564,7 @@ runs:
           '    <h1>Project Documentation</h1>' | Out-File -FilePath index.html -Append -Encoding UTF8
           '    <div class="links">' | Out-File -FilePath index.html -Append -Encoding UTF8
           '        <div class="link-item">' | Out-File -FilePath index.html -Append -Encoding UTF8
-          '            <a href="./api.html">📚 API Documentation (Swagger UI)</a>' | Out-File -FilePath index.html -Append -Encoding UTF8
+          '            <a href="./doc/">📚 API Documentation (Swagger UI)</a>' | Out-File -FilePath index.html -Append -Encoding UTF8
           '        </div>' | Out-File -FilePath index.html -Append -Encoding UTF8
           '        <div class="link-item">' | Out-File -FilePath index.html -Append -Encoding UTF8
           '            <a href="./coverage/index.html">📊 Test Coverage Report</a>' | Out-File -FilePath index.html -Append -Encoding UTF8
@@ -578,37 +573,7 @@ runs:
           '</body>' | Out-File -FilePath index.html -Append -Encoding UTF8
           '</html>' | Out-File -FilePath index.html -Append -Encoding UTF8
           
-          # Copy Swagger UI to api.html if exists
-          if ((Test-Path openapi.json) -and (Test-Path index.html)) {
-            Copy-Item index.html api.html
-            # Re-create the main index.html file after copying
-            '<!DOCTYPE html>' | Out-File -FilePath index.html -Encoding UTF8
-            '<html lang="en">' | Out-File -FilePath index.html -Append -Encoding UTF8
-            '<head>' | Out-File -FilePath index.html -Append -Encoding UTF8
-            '    <meta charset="UTF-8">' | Out-File -FilePath index.html -Append -Encoding UTF8
-            '    <title>Project Documentation</title>' | Out-File -FilePath index.html -Append -Encoding UTF8
-            '    <style>' | Out-File -FilePath index.html -Append -Encoding UTF8
-            '        body { font-family: Arial, sans-serif; margin: 40px; }' | Out-File -FilePath index.html -Append -Encoding UTF8
-            '        h1 { color: #333; }' | Out-File -FilePath index.html -Append -Encoding UTF8
-            '        .links { margin-top: 30px; }' | Out-File -FilePath index.html -Append -Encoding UTF8
-            '        .link-item { margin: 15px 0; }' | Out-File -FilePath index.html -Append -Encoding UTF8
-            '        a { color: #0066cc; text-decoration: none; font-size: 18px; }' | Out-File -FilePath index.html -Append -Encoding UTF8
-            '        a:hover { text-decoration: underline; }' | Out-File -FilePath index.html -Append -Encoding UTF8
-            '    </style>' | Out-File -FilePath index.html -Append -Encoding UTF8
-            '</head>' | Out-File -FilePath index.html -Append -Encoding UTF8
-            '<body>' | Out-File -FilePath index.html -Append -Encoding UTF8
-            '    <h1>Project Documentation</h1>' | Out-File -FilePath index.html -Append -Encoding UTF8
-            '    <div class="links">' | Out-File -FilePath index.html -Append -Encoding UTF8
-            '        <div class="link-item">' | Out-File -FilePath index.html -Append -Encoding UTF8
-            '            <a href="./api.html">📚 API Documentation (Swagger UI)</a>' | Out-File -FilePath index.html -Append -Encoding UTF8
-            '        </div>' | Out-File -FilePath index.html -Append -Encoding UTF8
-            '        <div class="link-item">' | Out-File -FilePath index.html -Append -Encoding UTF8
-            '            <a href="./coverage/index.html">📊 Test Coverage Report</a>' | Out-File -FilePath index.html -Append -Encoding UTF8
-            '        </div>' | Out-File -FilePath index.html -Append -Encoding UTF8
-            '    </div>' | Out-File -FilePath index.html -Append -Encoding UTF8
-            '</body>' | Out-File -FilePath index.html -Append -Encoding UTF8
-            '</html>' | Out-File -FilePath index.html -Append -Encoding UTF8
-          }
+          # doc and specification directories already created above if openapi.json exists
         } else {
           # If no docs (Swagger/OpenAPI), use coverage as root
           Copy-Item -Recurse ../private/coverage/* .
