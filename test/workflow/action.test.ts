@@ -105,6 +105,40 @@ describe('GitHub Action Workflow', () => {
     })
   })
 
+  describe('PowerShell URL Construction', () => {
+    it('should use Trim() to remove whitespace from tokens and repos', () => {
+      const powershellStep = actionConfig.runs.steps[2]
+      
+      // Check for Trim() usage on tokens
+      expect(powershellStep.run).toMatch(/\$token = "\$\{\{ inputs\.github-token \}\}"\.Trim\(\)/)
+      expect(powershellStep.run).toMatch(/\$publicToken = "\$\{\{ inputs\.public-repo-token \}\}"\.Trim\(\)/)
+      expect(powershellStep.run).toMatch(/\$publicToken2 = "\$\{\{ inputs\.public-repo-token \}\}"\.Trim\(\)/)
+      
+      // Check for Trim() usage on repos
+      expect(powershellStep.run).toMatch(/\$repo = "\$\{\{ inputs\.private-repo \}\}"\.Trim\(\)/)
+      expect(powershellStep.run).toMatch(/\$publicRepo = "\$\{\{ inputs\.public-repo \}\}"\.Trim\(\)/)
+      expect(powershellStep.run).toMatch(/\$publicRepo2 = "\$\{\{ inputs\.public-repo \}\}"\.Trim\(\)/)
+    })
+
+    it('should construct URLs using PowerShell string interpolation', () => {
+      const powershellStep = actionConfig.runs.steps[2]
+      
+      // Check URL construction pattern
+      expect(powershellStep.run).toMatch(/\$privateRepoUrl = "https:\/\/x-access-token:\$\{token\}@github\.com\/\$\{repo\}\.git"/)
+      expect(powershellStep.run).toMatch(/\$publicRepoUrl = "https:\/\/x-access-token:\$\{publicToken\}@github\.com\/\$\{publicRepo\}\.git"/)
+      expect(powershellStep.run).toMatch(/\$publicRepoUrl2 = "https:\/\/x-access-token:\$\{publicToken2\}@github\.com\/\$\{publicRepo2\}\.git"/)
+    })
+
+    it('should use variable references in git clone commands', () => {
+      const powershellStep = actionConfig.runs.steps[2]
+      
+      // Check git clone uses variables
+      expect(powershellStep.run).toMatch(/git clone \$privateRepoUrl private/)
+      expect(powershellStep.run).toMatch(/git clone \$publicRepoUrl public-temp/)
+      expect(powershellStep.run).toMatch(/git clone \$publicRepoUrl2 public/)
+    })
+  })
+
   describe('Workflow Logic Validation', () => {
     it('should handle .dev.vars template file correctly', () => {
       const bashStep = actionConfig.runs.steps[1]
