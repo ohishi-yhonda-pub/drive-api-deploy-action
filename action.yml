@@ -626,38 +626,36 @@ runs:
             Move-Item docs/openapi.json docs/specification/ -Force
             
             # Create Swagger UI HTML
-            $swaggerHtml = @'
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>API Documentation</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css">
-</head>
-<body>
-    <div id="swagger-ui"></div>
-    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-standalone-preset.js"></script>
-    <script>
-        window.onload = function() {
-            window.ui = SwaggerUIBundle({
-                url: "../specification/openapi.json",
-                dom_id: '#swagger-ui',
-                deepLinking: true,
-                presets: [
-                    SwaggerUIBundle.presets.apis,
-                    SwaggerUIStandalonePreset
-                ],
-                plugins: [
-                    SwaggerUIBundle.plugins.DownloadUrl
-                ],
-                layout: "StandaloneLayout"
-            });
-        };
-    </script>
-</body>
-</html>
-'@
+            $swaggerHtml = "<!DOCTYPE html>`n"
+            $swaggerHtml += "<html lang='en'>`n"
+            $swaggerHtml += "<head>`n"
+            $swaggerHtml += "    <meta charset='UTF-8'>`n"
+            $swaggerHtml += "    <title>API Documentation</title>`n"
+            $swaggerHtml += "    <link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css'>`n"
+            $swaggerHtml += "</head>`n"
+            $swaggerHtml += "<body>`n"
+            $swaggerHtml += "    <div id='swagger-ui'></div>`n"
+            $swaggerHtml += "    <script src='https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js'></script>`n"
+            $swaggerHtml += "    <script src='https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-standalone-preset.js'></script>`n"
+            $swaggerHtml += "    <script>`n"
+            $swaggerHtml += "        window.onload = function() {`n"
+            $swaggerHtml += "            window.ui = SwaggerUIBundle({`n"
+            $swaggerHtml += "                url: '../specification/openapi.json',`n"
+            $swaggerHtml += "                dom_id: '#swagger-ui',`n"
+            $swaggerHtml += "                deepLinking: true,`n"
+            $swaggerHtml += "                presets: [`n"
+            $swaggerHtml += "                    SwaggerUIBundle.presets.apis,`n"
+            $swaggerHtml += "                    SwaggerUIStandalonePreset`n"
+            $swaggerHtml += "                ],`n"
+            $swaggerHtml += "                plugins: [`n"
+            $swaggerHtml += "                    SwaggerUIBundle.plugins.DownloadUrl`n"
+            $swaggerHtml += "                ],`n"
+            $swaggerHtml += "                layout: 'StandaloneLayout'`n"
+            $swaggerHtml += "            });`n"
+            $swaggerHtml += "        };`n"
+            $swaggerHtml += "    </script>`n"
+            $swaggerHtml += "</body>`n"
+            $swaggerHtml += "</html>`n"
             $swaggerHtml | Out-File -FilePath docs/doc/index.html -Encoding UTF8
           }
         } else {
@@ -830,34 +828,32 @@ runs:
           Copy-Item -Recurse ../private/coverage .
           
           # Create root index.html with links
-          $indexHtml = @'
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Project Documentation</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 40px; }
-        h1 { color: #333; }
-        .links { margin-top: 30px; }
-        .link-item { margin: 15px 0; }
-        a { color: #0066cc; text-decoration: none; font-size: 18px; }
-        a:hover { text-decoration: underline; }
-    </style>
-</head>
-<body>
-    <h1>Project Documentation</h1>
-    <div class="links">
-        <div class="link-item">
-            <a href="./doc/">📚 API Documentation (Swagger UI)</a>
-        </div>
-        <div class="link-item">
-            <a href="./coverage/index.html">📊 Test Coverage Report</a>
-        </div>
-    </div>
-</body>
-</html>
-'@
+          $indexHtml = "<!DOCTYPE html>`n"
+          $indexHtml += "<html lang='en'>`n"
+          $indexHtml += "<head>`n"
+          $indexHtml += "    <meta charset='UTF-8'>`n"
+          $indexHtml += "    <title>Project Documentation</title>`n"
+          $indexHtml += "    <style>`n"
+          $indexHtml += "        body { font-family: Arial, sans-serif; margin: 40px; }`n"
+          $indexHtml += "        h1 { color: #333; }`n"
+          $indexHtml += "        .links { margin-top: 30px; }`n"
+          $indexHtml += "        .link-item { margin: 15px 0; }`n"
+          $indexHtml += "        a { color: #0066cc; text-decoration: none; font-size: 18px; }`n"
+          $indexHtml += "        a:hover { text-decoration: underline; }`n"
+          $indexHtml += "    </style>`n"
+          $indexHtml += "</head>`n"
+          $indexHtml += "<body>`n"
+          $indexHtml += "    <h1>Project Documentation</h1>`n"
+          $indexHtml += "    <div class='links'>`n"
+          $indexHtml += "        <div class='link-item'>`n"
+          $indexHtml += "            <a href='./doc/'>📚 API Documentation (Swagger UI)</a>`n"
+          $indexHtml += "        </div>`n"
+          $indexHtml += "        <div class='link-item'>`n"
+          $indexHtml += "            <a href='./coverage/index.html'>📊 Test Coverage Report</a>`n"
+          $indexHtml += "        </div>`n"
+          $indexHtml += "    </div>`n"
+          $indexHtml += "</body>`n"
+          $indexHtml += "</html>`n"
           $indexHtml | Out-File -FilePath index.html -Encoding UTF8
         } else {
           # If no docs (Swagger/OpenAPI), use coverage as root
