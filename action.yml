@@ -82,19 +82,36 @@ runs:
           else
             # Log the actual port being used
             echo "Checking which port Wrangler is using..."
-            sleep 2
-            actualPort=$(netstat -tlnp 2>/dev/null | grep -E "node|wrangler" | grep -oE ':[0-9]+' | head -1 | cut -d: -f2)
+            sleep 3
+            
+            # Check Wrangler logs for actual port
+            actualPort=""
+            if [ -f logs/wrangler.stdout.log ]; then
+              # Look for common patterns in Wrangler output
+              actualPort=$(grep -oE "(Listening on|Local:|Ready on|Server running on).*:([0-9]+)" logs/wrangler.stdout.log 2>/dev/null | grep -oE "[0-9]+" | tail -1)
+              if [ -z "$actualPort" ]; then
+                # Alternative pattern
+                actualPort=$(grep -oE "localhost:([0-9]+)" logs/wrangler.stdout.log 2>/dev/null | grep -oE "[0-9]+" | tail -1)
+              fi
+            fi
+            
+            # If not found in logs, check netstat
+            if [ -z "$actualPort" ]; then
+              actualPort=$(netstat -tlnp 2>/dev/null | grep -E "node|wrangler" | grep -oE ':[0-9]+' | head -1 | cut -d: -f2)
+            fi
+            
             if [ -n "$actualPort" ]; then
               echo "Wrangler is running on port: $actualPort"
             else
               echo "Could not determine actual port, assuming it's using requested port: ${{ inputs.wrangler-port }}"
+              actualPort=${{ inputs.wrangler-port }}
             fi
           fi
           
           # Wait for server and fetch OpenAPI
           maxAttempts=30
           for i in $(seq 1 $maxAttempts); do
-            echo "Attempt $i/$maxAttempts: Checking Wrangler at http://localhost:${{ inputs.wrangler-port }}/specification"
+            echo "Attempt $i/$maxAttempts: Checking Wrangler at http://localhost:$actualPort/specification"
             
             # Check if process is still running
             if ! ps -p $wranglerPID > /dev/null; then
@@ -111,7 +128,7 @@ runs:
             mkdir -p docs
             
             # Try to fetch OpenAPI spec with detailed error
-            httpStatus=$(curl -w "%{http_code}" -o docs/openapi.json.tmp -s http://localhost:${{ inputs.wrangler-port }}/specification 2>&1)
+            httpStatus=$(curl -w "%{http_code}" -o docs/openapi.json.tmp -s http://localhost:$actualPort/specification 2>&1)
             curlExitCode=$?
             
             if [ $curlExitCode -eq 0 ] && [ "$httpStatus" = "200" ]; then
@@ -574,36 +591,48 @@ runs:
           } else {
             # Log the actual port being used
             Write-Host "Checking which port Wrangler is using..."
-            Start-Sleep -Seconds 2
-            try {
-              $portInfo = netstat -an | Select-String ":(\d+).*LISTENING" | Where-Object { $_ -match "127\.0\.0\.1:(\d+)" } | ForEach-Object { $matches[1] }
-              $nodeProcesses = Get-Process | Where-Object { $_.ProcessName -match "node" }
-              if ($nodeProcesses -and $portInfo) {
-                # First check if the requested port is listening
-                if ($portInfo -contains "${{ inputs.wrangler-port }}") {
-                  Write-Host "Wrangler is running on requested port: ${{ inputs.wrangler-port }}"
-                } else {
-                  # Check for common dev server ports
-                  $devPorts = $portInfo | Where-Object { [int]$_ -ge 3000 -and [int]$_ -le 65535 }
-                  if ($devPorts) {
-                    Write-Host "Found listening ports: $($devPorts -join ', ')"
-                    Write-Host "Note: Wrangler may be using a different port than requested"
-                  }
-                  Write-Host "Continuing with requested port: ${{ inputs.wrangler-port }}"
-                }
-              } else {
-                Write-Host "Could not determine actual port, assuming it's using requested port: ${{ inputs.wrangler-port }}"
+            Start-Sleep -Seconds 3
+            
+            # Check Wrangler logs for actual port
+            $actualPort = $null
+            if (Test-Path logs\wrangler.stdout.log) {
+              # Look for common patterns in Wrangler output
+              $logContent = Get-Content logs\wrangler.stdout.log -Raw
+              if ($logContent -match "(Listening on|Local:|Ready on|Server running on).*:(\d+)") {
+                $actualPort = $matches[2]
+              } elseif ($logContent -match "localhost:(\d+)") {
+                $actualPort = $matches[1]
               }
-            } catch {
-              Write-Host "Error checking port: $_"
-              Write-Host "Assuming Wrangler is using requested port: ${{ inputs.wrangler-port }}"
+            }
+            
+            # If not found in logs, check netstat
+            if (-not $actualPort) {
+              try {
+                $portInfo = netstat -an | Select-String ":(\d+).*LISTENING" | Where-Object { $_ -match "127\.0\.0\.1:(\d+)" } | ForEach-Object { $matches[1] }
+                $nodeProcesses = Get-Process | Where-Object { $_.ProcessName -match "node" }
+                if ($nodeProcesses -and $portInfo) {
+                  $actualPort = $portInfo | Select-Object -First 1
+                }
+              } catch {
+                Write-Host "Error checking port: $_"
+              }
+            }
+            
+            if ($actualPort) {
+              Write-Host "Wrangler is running on port: $actualPort"
+              # Store in environment for later use
+              echo "WRANGLER_ACTUAL_PORT=$actualPort" >> $env:GITHUB_ENV
+            } else {
+              Write-Host "Could not determine actual port, assuming it's using requested port: ${{ inputs.wrangler-port }}"
+              $actualPort = "${{ inputs.wrangler-port }}"
+              echo "WRANGLER_ACTUAL_PORT=${{ inputs.wrangler-port }}" >> $env:GITHUB_ENV
             }
           }
           
           # Wait for server and fetch OpenAPI
           $maxAttempts = 30
           for ($i = 1; $i -le $maxAttempts; $i++) {
-            Write-Host "Attempt $i/$maxAttempts`: Checking Wrangler at http://localhost:${{ inputs.wrangler-port }}/specification"
+            Write-Host "Attempt $i/$maxAttempts`: Checking Wrangler at http://localhost:$actualPort/specification"
             
             # Check if job is still running
             if ($wranglerJob.State -ne "Running") {
@@ -631,7 +660,7 @@ runs:
               # Ensure docs directory exists
               New-Item -ItemType Directory -Path docs -Force | Out-Null
               
-              $response = Invoke-WebRequest -Uri "http://localhost:${{ inputs.wrangler-port }}/specification" -UseBasicParsing -ErrorAction Stop -TimeoutSec 5
+              $response = Invoke-WebRequest -Uri "http://localhost:$actualPort/specification" -UseBasicParsing -ErrorAction Stop -TimeoutSec 5
               $response.Content | Out-File -FilePath docs/openapi.json -Encoding UTF8
               Write-Host "SUCCESS: OpenAPI specification generated (HTTP $($response.StatusCode))"
               break
