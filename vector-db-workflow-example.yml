@@ -1,0 +1,26 @@
+name: Deploy to Public Repository
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    
+    - name: Deploy Drive API
+      uses: ohishi-yhonda-pub/drive-api-deploy-action@main
+      with:
+        github-token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+        public-repo-token: ${{ secrets.PUBLIC_REPO_TOKEN }}
+        private-repo: ohishi-yhonda-org/vector-db
+        public-repo: ohishi-yhonda-pub/vector-db
+        wrangler-port: '8787'

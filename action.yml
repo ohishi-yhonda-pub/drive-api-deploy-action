@@ -62,19 +62,71 @@ runs:
           fi
           
           # Start Wrangler and generate OpenAPI
-          npx wrangler dev --port ${{ inputs.wrangler-port }} --local &
+          echo "Starting Wrangler dev server on port ${{ inputs.wrangler-port }}..."
+          # Create logs directory
+          mkdir -p logs
+          # Start Wrangler with output redirection
+          npx wrangler dev --port ${{ inputs.wrangler-port }} --local > logs/wrangler.stdout.log 2> logs/wrangler.stderr.log &
           wranglerPID=$!
+          echo "Wrangler started with PID: $wranglerPID"
           sleep 5
+          
+          # Check if Wrangler process is still running
+          if ! ps -p $wranglerPID > /dev/null; then
+            echo "ERROR: Wrangler process died immediately!"
+            echo "=== Wrangler stdout ==="
+            cat logs/wrangler.stdout.log || echo "No stdout log found"
+            echo "=== Wrangler stderr ==="
+            cat logs/wrangler.stderr.log || echo "No stderr log found"
+            echo "===================="
+          fi
           
           # Wait for server and fetch OpenAPI
           maxAttempts=30
           for i in $(seq 1 $maxAttempts); do
-            if curl -s http://localhost:${{ inputs.wrangler-port }}/specification > docs/openapi.json; then
-              echo "OpenAPI specification generated"
+            echo "Attempt $i/$maxAttempts: Checking Wrangler at http://localhost:${{ inputs.wrangler-port }}/specification"
+            
+            # Check if process is still running
+            if ! ps -p $wranglerPID > /dev/null; then
+              echo "ERROR: Wrangler process is no longer running!"
+              echo "=== Wrangler stdout (last 50 lines) ==="
+              tail -n 50 logs/wrangler.stdout.log || echo "No stdout log found"
+              echo "=== Wrangler stderr (last 50 lines) ==="
+              tail -n 50 logs/wrangler.stderr.log || echo "No stderr log found"
+              echo "===================="
               break
             fi
+            
+            # Try to fetch OpenAPI spec with detailed error
+            httpStatus=$(curl -w "%{http_code}" -o docs/openapi.json.tmp -s http://localhost:${{ inputs.wrangler-port }}/specification 2>&1)
+            curlExitCode=$?
+            
+            if [ $curlExitCode -eq 0 ] && [ "$httpStatus" = "200" ]; then
+              mv docs/openapi.json.tmp docs/openapi.json
+              echo "SUCCESS: OpenAPI specification generated (HTTP $httpStatus)"
+              break
+            else
+              echo "Failed: curl exit code=$curlExitCode, HTTP status=$httpStatus"
+              if [ $curlExitCode -eq 7 ]; then
+                echo "Connection refused - Wrangler may not be ready yet"
+              elif [ $curlExitCode -ne 0 ]; then
+                echo "curl error details: $(curl -v http://localhost:${{ inputs.wrangler-port }}/specification 2>&1 | grep -E 'curl:|Connect')"
+              fi
+              rm -f docs/openapi.json.tmp
+            fi
+            
             if [ $i -eq $maxAttempts ]; then
-              echo "Warning: Wrangler failed to start after $maxAttempts attempts"
+              echo "ERROR: Wrangler failed to respond after $maxAttempts attempts"
+              echo "=== Final Wrangler logs ==="
+              echo "--- stdout (last 100 lines) ---"
+              tail -n 100 logs/wrangler.stdout.log || echo "No stdout log found"
+              echo "--- stderr (last 100 lines) ---"
+              tail -n 100 logs/wrangler.stderr.log || echo "No stderr log found"
+              echo "=== Port check ==="
+              netstat -tlnp 2>/dev/null | grep ":${{ inputs.wrangler-port }}" || echo "Port ${{ inputs.wrangler-port }} not found in netstat"
+              echo "=== Process check ==="
+              ps aux | grep -E "wrangler|worker" | grep -v grep || echo "No wrangler processes found"
+              echo "===================="
               echo "Continuing without OpenAPI specification..."
               break
             fi
@@ -320,24 +372,112 @@ runs:
           }
           
           # Start Wrangler and generate OpenAPI
+          Write-Host "Starting Wrangler dev server on port ${{ inputs.wrangler-port }}..."
+          # Create logs directory
+          New-Item -ItemType Directory -Path logs -Force | Out-Null
+          
+          # Start Wrangler with output capture
           $wranglerJob = Start-Job -ScriptBlock {
             param($workDir, $port)
             Set-Location $workDir
-            npx wrangler dev --port $port --local
+            $proc = Start-Process -FilePath "npx" -ArgumentList "wrangler", "dev", "--port", $port, "--local" -NoNewWindow -PassThru -RedirectStandardOutput "logs\wrangler.stdout.log" -RedirectStandardError "logs\wrangler.stderr.log"
+            $proc.WaitForExit()
+            return $proc.ExitCode
           } -ArgumentList (Get-Location).Path, ${{ inputs.wrangler-port }}
+          
+          Write-Host "Wrangler job started with ID: $($wranglerJob.Id)"
           Start-Sleep -Seconds 5
+          
+          # Check if Wrangler job is still running
+          if ($wranglerJob.State -ne "Running") {
+            Write-Host "ERROR: Wrangler job terminated with state: $($wranglerJob.State)"
+            if (Test-Path logs\wrangler.stdout.log) {
+              Write-Host "=== Wrangler stdout ==="
+              Get-Content logs\wrangler.stdout.log
+            }
+            if (Test-Path logs\wrangler.stderr.log) {
+              Write-Host "=== Wrangler stderr ==="
+              Get-Content logs\wrangler.stderr.log
+            }
+            Write-Host "===================="
+          }
           
           # Wait for server and fetch OpenAPI
           $maxAttempts = 30
           for ($i = 1; $i -le $maxAttempts; $i++) {
+            Write-Host "Attempt $i/$maxAttempts`: Checking Wrangler at http://localhost:${{ inputs.wrangler-port }}/specification"
+            
+            # Check if job is still running
+            if ($wranglerJob.State -ne "Running") {
+              Write-Host "ERROR: Wrangler job is no longer running! State: $($wranglerJob.State)"
+              # Try to get job results
+              try {
+                $jobResult = Receive-Job -Job $wranglerJob -ErrorAction Stop
+                Write-Host "Job output: $jobResult"
+              } catch {
+                Write-Host "Could not retrieve job output: $_"
+              }
+              if (Test-Path logs\wrangler.stdout.log) {
+                Write-Host "=== Wrangler stdout (last 50 lines) ==="
+                Get-Content logs\wrangler.stdout.log -Tail 50
+              }
+              if (Test-Path logs\wrangler.stderr.log) {
+                Write-Host "=== Wrangler stderr (last 50 lines) ==="
+                Get-Content logs\wrangler.stderr.log -Tail 50
+              }
+              Write-Host "===================="
+              break
+            }
+            
             try {
-              $response = Invoke-WebRequest -Uri "http://localhost:${{ inputs.wrangler-port }}/specification" -UseBasicParsing -ErrorAction Stop
+              $response = Invoke-WebRequest -Uri "http://localhost:${{ inputs.wrangler-port }}/specification" -UseBasicParsing -ErrorAction Stop -TimeoutSec 5
               $response.Content | Out-File -FilePath docs/openapi.json -Encoding UTF8
-              Write-Host "OpenAPI specification generated"
+              Write-Host "SUCCESS: OpenAPI specification generated (HTTP $($response.StatusCode))"
               break
             } catch {
+              $errorDetails = $_.Exception.Message
+              Write-Host "Failed: $errorDetails"
+              
+              if ($_.Exception -is [System.Net.WebException]) {
+                $webEx = [System.Net.WebException]$_.Exception
+                if ($webEx.Status -eq [System.Net.WebExceptionStatus]::ConnectFailure) {
+                  Write-Host "Connection refused - Wrangler may not be ready yet"
+                } elseif ($webEx.Response) {
+                  $statusCode = [int]$webEx.Response.StatusCode
+                  Write-Host "HTTP Status Code: $statusCode"
+                }
+              }
+              
               if ($i -eq $maxAttempts) {
-                Write-Host "Warning: Wrangler failed to start after $maxAttempts attempts"
+                Write-Host "ERROR: Wrangler failed to respond after $maxAttempts attempts"
+                Write-Host "=== Final Wrangler logs ==="
+                if (Test-Path logs\wrangler.stdout.log) {
+                  Write-Host "--- stdout (last 100 lines) ---"
+                  Get-Content logs\wrangler.stdout.log -Tail 100
+                } else {
+                  Write-Host "No stdout log found at logs\wrangler.stdout.log"
+                }
+                if (Test-Path logs\wrangler.stderr.log) {
+                  Write-Host "--- stderr (last 100 lines) ---"
+                  Get-Content logs\wrangler.stderr.log -Tail 100
+                } else {
+                  Write-Host "No stderr log found at logs\wrangler.stderr.log"
+                }
+                Write-Host "=== Port check ==="
+                try {
+                  $portCheck = netstat -an | Select-String ":${{ inputs.wrangler-port }}"
+                  if ($portCheck) {
+                    Write-Host "Port ${{ inputs.wrangler-port }} found in netstat:"
+                    $portCheck
+                  } else {
+                    Write-Host "Port ${{ inputs.wrangler-port }} not found in netstat"
+                  }
+                } catch {
+                  Write-Host "Could not run netstat: $_"
+                }
+                Write-Host "=== Process check ==="
+                Get-Process | Where-Object { $_.ProcessName -match "node|wrangler" } | Format-Table -Property Id, ProcessName, StartTime
+                Write-Host "===================="
                 Write-Host "Continuing without OpenAPI specification..."
                 break
               }
