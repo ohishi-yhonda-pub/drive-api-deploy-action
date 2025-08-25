@@ -377,13 +377,85 @@ runs:
           New-Item -ItemType Directory -Path logs -Force | Out-Null
           
           # Start Wrangler with output capture
+          $currentDir = (Get-Location).Path
+          $logsDir = Join-Path $currentDir "logs"
+          $stdoutLog = Join-Path $logsDir "wrangler.stdout.log"
+          $stderrLog = Join-Path $logsDir "wrangler.stderr.log"
+          
+          # Start Wrangler using PowerShell job with proper output handling
+          Write-Host "Current directory: $currentDir"
+          Write-Host "Logs will be written to: $stdoutLog and $stderrLog"
+          
           $wranglerJob = Start-Job -ScriptBlock {
             param($workDir, $port)
             Set-Location $workDir
-            $proc = Start-Process -FilePath "npx" -ArgumentList "wrangler", "dev", "--port", $port, "--local" -NoNewWindow -PassThru -RedirectStandardOutput "logs\wrangler.stdout.log" -RedirectStandardError "logs\wrangler.stderr.log"
-            $proc.WaitForExit()
-            return $proc.ExitCode
-          } -ArgumentList (Get-Location).Path, ${{ inputs.wrangler-port }}
+            
+            # Ensure npx is in PATH
+            $env:PATH = "C:\Program Files\nodejs;$env:PATH"
+            
+            # Create a separate process for wrangler that doesn't block
+            $psi = New-Object System.Diagnostics.ProcessStartInfo
+            $psi.FileName = "cmd.exe"
+            $psi.Arguments = "/c npx wrangler dev --port $port --local 2>&1"
+            $psi.UseShellExecute = $false
+            $psi.RedirectStandardOutput = $true
+            $psi.RedirectStandardError = $true
+            $psi.WorkingDirectory = $workDir
+            $psi.CreateNoWindow = $true
+            
+            $process = New-Object System.Diagnostics.Process
+            $process.StartInfo = $psi
+            
+            # Register event handlers for output
+            $outputBuilder = New-Object System.Text.StringBuilder
+            $errorBuilder = New-Object System.Text.StringBuilder
+            
+            $outputHandler = {
+              if ($EventArgs.Data -ne $null) {
+                $null = $outputBuilder.AppendLine($EventArgs.Data)
+                Write-Host $EventArgs.Data
+              }
+            }
+            
+            $errorHandler = {
+              if ($EventArgs.Data -ne $null) {
+                $null = $errorBuilder.AppendLine($EventArgs.Data)
+                Write-Host "ERROR: $($EventArgs.Data)"
+              }
+            }
+            
+            Register-ObjectEvent -InputObject $process -EventName "OutputDataReceived" -Action $outputHandler | Out-Null
+            Register-ObjectEvent -InputObject $process -EventName "ErrorDataReceived" -Action $errorHandler | Out-Null
+            
+            # Start the process
+            $started = $process.Start()
+            $process.BeginOutputReadLine()
+            $process.BeginErrorReadLine()
+            
+            # Save output periodically
+            $logsDir = Join-Path $workDir "logs"
+            while (!$process.HasExited) {
+              Start-Sleep -Seconds 2
+              
+              # Write current output to files
+              if ($outputBuilder.Length -gt 0) {
+                $outputBuilder.ToString() | Out-File -FilePath (Join-Path $logsDir "wrangler.stdout.log") -Encoding UTF8
+              }
+              if ($errorBuilder.Length -gt 0) {
+                $errorBuilder.ToString() | Out-File -FilePath (Join-Path $logsDir "wrangler.stderr.log") -Encoding UTF8
+              }
+            }
+            
+            # Final write
+            $outputBuilder.ToString() | Out-File -FilePath (Join-Path $logsDir "wrangler.stdout.log") -Encoding UTF8
+            $errorBuilder.ToString() | Out-File -FilePath (Join-Path $logsDir "wrangler.stderr.log") -Encoding UTF8
+            
+            return @{
+              ExitCode = $process.ExitCode
+              Output = $outputBuilder.ToString()
+              Error = $errorBuilder.ToString()
+            }
+          } -ArgumentList $currentDir, ${{ inputs.wrangler-port }}
           
           Write-Host "Wrangler job started with ID: $($wranglerJob.Id)"
           Start-Sleep -Seconds 5
