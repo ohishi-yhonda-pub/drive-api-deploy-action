@@ -356,8 +356,76 @@ runs:
       if: steps.check-bash.outputs.bash_available == 'false'
       shell: powershell
       run: |
-        # Add Git and Node.js to PATH
-        $env:PATH = "C:\Program Files\Git\cmd;C:\Program Files\nodejs;$env:PATH"
+        # Find Git and Node.js paths
+        $gitPath = ""
+        $nodePath = ""
+        
+        # Common Git paths
+        $gitPaths = @(
+          "C:\Program Files\Git\cmd",
+          "C:\Program Files\Git\bin",
+          "C:\Program Files (x86)\Git\cmd",
+          "C:\Program Files (x86)\Git\bin",
+          "C:\Git\cmd",
+          "C:\Git\bin"
+        )
+        
+        # Common Node.js paths
+        $nodePaths = @(
+          "C:\Program Files\nodejs",
+          "C:\Program Files (x86)\nodejs",
+          "C:\nodejs"
+        )
+        
+        # Find Git
+        foreach ($path in $gitPaths) {
+          if (Test-Path "$path\git.exe") {
+            $gitPath = $path
+            Write-Host "Git found at: $gitPath"
+            break
+          }
+        }
+        
+        # Find Node.js
+        foreach ($path in $nodePaths) {
+          if (Test-Path "$path\node.exe") {
+            $nodePath = $path
+            Write-Host "Node.js found at: $nodePath"
+            break
+          }
+        }
+        
+        # If not found, try to get from PATH
+        if (-not $gitPath) {
+          try {
+            $gitCmd = Get-Command git -ErrorAction Stop
+            $gitPath = Split-Path $gitCmd.Path -Parent
+            Write-Host "Git found in PATH at: $gitPath"
+          } catch {
+            Write-Host "WARNING: Git not found. Will try to use git directly."
+          }
+        }
+        
+        if (-not $nodePath) {
+          try {
+            $nodeCmd = Get-Command node -ErrorAction Stop
+            $nodePath = Split-Path $nodeCmd.Path -Parent
+            Write-Host "Node.js found in PATH at: $nodePath"
+          } catch {
+            Write-Host "WARNING: Node.js not found. Will try to use npm directly."
+          }
+        }
+        
+        # Add to PATH for this step
+        if ($gitPath) {
+          $env:PATH = "$gitPath;$env:PATH"
+        }
+        if ($nodePath) {
+          $env:PATH = "$nodePath;$env:PATH"
+        }
+        
+        # Export PATH for subsequent steps
+        echo "PATH=$env:PATH" >> $env:GITHUB_ENV
         
         # Create temp directory
         $tempDir = Join-Path $env:TEMP ("deploy-" + (Get-Date -Format "yyyyMMddHHmmss"))
