@@ -573,15 +573,22 @@ runs:
             
             # Save output periodically
             $logsDir = Join-Path $workDir "logs"
+            $stdoutPath = Join-Path $logsDir "wrangler.stdout.log"
+            $stderrPath = Join-Path $logsDir "wrangler.stderr.log"
+            
+            # Create empty log files
+            "" | Out-File -FilePath $stdoutPath -Encoding UTF8
+            "" | Out-File -FilePath $stderrPath -Encoding UTF8
+            
             while (!$process.HasExited) {
-              Start-Sleep -Seconds 2
+              Start-Sleep -Seconds 1
               
               # Write current output to files
               if ($outputBuilder.Length -gt 0) {
-                $outputBuilder.ToString() | Out-File -FilePath (Join-Path $logsDir "wrangler.stdout.log") -Encoding UTF8
+                $outputBuilder.ToString() | Out-File -FilePath $stdoutPath -Encoding UTF8
               }
               if ($errorBuilder.Length -gt 0) {
-                $errorBuilder.ToString() | Out-File -FilePath (Join-Path $logsDir "wrangler.stderr.log") -Encoding UTF8
+                $errorBuilder.ToString() | Out-File -FilePath $stderrPath -Encoding UTF8
               }
             }
             
@@ -602,13 +609,27 @@ runs:
           # Check if Wrangler job is still running
           if ($wranglerJob.State -ne "Running") {
             Write-Host "ERROR: Wrangler job terminated with state: $($wranglerJob.State)"
+            
+            # Try to get job output
+            try {
+              $jobResult = Receive-Job -Job $wranglerJob -ErrorAction Stop
+              Write-Host "Job result:"
+              Write-Host ($jobResult | ConvertTo-Json -Depth 3)
+            } catch {
+              Write-Host "Could not retrieve job output: $_"
+            }
+            
             if (Test-Path logs\wrangler.stdout.log) {
               Write-Host "=== Wrangler stdout ==="
               Get-Content logs\wrangler.stdout.log
+            } else {
+              Write-Host "=== No stdout log found ==="
             }
             if (Test-Path logs\wrangler.stderr.log) {
               Write-Host "=== Wrangler stderr ==="
               Get-Content logs\wrangler.stderr.log
+            } else {
+              Write-Host "=== No stderr log found ==="
             }
             Write-Host "===================="
           } else {
