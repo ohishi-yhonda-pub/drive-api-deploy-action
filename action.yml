@@ -65,8 +65,8 @@ runs:
           echo "Starting Wrangler dev server on port ${{ inputs.wrangler-port }}..."
           # Create logs directory
           mkdir -p logs
-          # Start Wrangler with output redirection
-          npx wrangler dev --port ${{ inputs.wrangler-port }} --local > logs/wrangler.stdout.log 2> logs/wrangler.stderr.log &
+          # Start Wrangler with output redirection using npm run dev with port environment variable
+          PORT=${{ inputs.wrangler-port }} npm run dev > logs/wrangler.stdout.log 2> logs/wrangler.stderr.log &
           wranglerPID=$!
           echo "Wrangler started with PID: $wranglerPID"
           sleep 5
@@ -396,7 +396,7 @@ runs:
             # Create a separate process for wrangler that doesn't block
             $psi = New-Object System.Diagnostics.ProcessStartInfo
             $psi.FileName = "cmd.exe"
-            $psi.Arguments = "/c npx wrangler dev --port $port --local 2>&1"
+            $psi.Arguments = "/c set PORT=$port && npm run dev 2>&1"
             $psi.UseShellExecute = $false
             $psi.RedirectStandardOutput = $true
             $psi.RedirectStandardError = $true
