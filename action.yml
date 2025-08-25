@@ -610,11 +610,6 @@ runs:
           
           Write-Host "Using port: $actualPort"
           
-          # Store log paths for later use
-          Set-Variable -Name "stdoutLog" -Value $stdoutLog -Scope 1
-          Set-Variable -Name "stderrLog" -Value $stderrLog -Scope 1
-          Set-Variable -Name "wranglerPID" -Value $wranglerPID -Scope 1
-          
           # Wait for server and fetch OpenAPI
           $maxAttempts = 30
           for ($i = 1; $i -le $maxAttempts; $i++) {
