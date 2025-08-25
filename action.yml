@@ -65,8 +65,20 @@ runs:
           echo "Starting Wrangler dev server on port ${{ inputs.wrangler-port }}..."
           # Create logs directory
           mkdir -p logs
-          # Start Wrangler with output redirection using npm run dev with port environment variable
-          PORT=${{ inputs.wrangler-port }} npm run dev > logs/wrangler.stdout.log 2> logs/wrangler.stderr.log &
+          # Get the dev script command from package.json and add port option
+          devCommand=$(node -e "const pkg = require('./package.json'); const cmd = pkg.scripts.dev; console.log(cmd)")
+          echo "Original dev command: $devCommand"
+          
+          # Add port option to the command
+          if [[ $devCommand == *"wrangler dev"* ]]; then
+            modifiedCommand="$devCommand --port ${{ inputs.wrangler-port }}"
+          else
+            modifiedCommand="$devCommand"
+          fi
+          echo "Modified command: $modifiedCommand"
+          
+          # Start Wrangler with output redirection
+          $modifiedCommand > logs/wrangler.stdout.log 2> logs/wrangler.stderr.log &
           wranglerPID=$!
           echo "Wrangler started with PID: $wranglerPID"
           sleep 5
@@ -492,18 +504,28 @@ runs:
             # Ensure npx is in PATH
             $env:PATH = "C:\Program Files\nodejs;$env:PATH"
             
+            # Get the dev script command from package.json and add port option
+            $packageJson = Get-Content -Path "package.json" -Raw | ConvertFrom-Json
+            $devCommand = $packageJson.scripts.dev
+            Write-Host "Original dev command: $devCommand"
+            
+            # Add port option to the command
+            if ($devCommand -like "*wrangler dev*") {
+              $modifiedCommand = "$devCommand --port $port"
+            } else {
+              $modifiedCommand = $devCommand
+            }
+            Write-Host "Modified command: $modifiedCommand"
+            
             # Create a separate process for wrangler that doesn't block
             $psi = New-Object System.Diagnostics.ProcessStartInfo
             $psi.FileName = "cmd.exe"
-            $psi.Arguments = "/c npm run dev 2>&1"
+            $psi.Arguments = "/c $modifiedCommand 2>&1"
             $psi.UseShellExecute = $false
             $psi.RedirectStandardOutput = $true
             $psi.RedirectStandardError = $true
             $psi.WorkingDirectory = $workDir
             $psi.CreateNoWindow = $true
-            
-            # Set environment variable
-            $psi.EnvironmentVariables["PORT"] = $port
             
             $process = New-Object System.Diagnostics.Process
             $process.StartInfo = $psi
