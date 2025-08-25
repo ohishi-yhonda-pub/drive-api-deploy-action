@@ -352,7 +352,7 @@ runs:
         cd /tmp
         rm -rf "$tempDir"
     
-    - name: Setup PowerShell Environment
+    - name: Process and Deploy (PowerShell)
       if: steps.check-bash.outputs.bash_available == 'false'
       shell: powershell
       run: |
@@ -362,17 +362,7 @@ runs:
         # Create temp directory
         $tempDir = Join-Path $env:TEMP ("deploy-" + (Get-Date -Format "yyyyMMddHHmmss"))
         New-Item -ItemType Directory -Path $tempDir -Force
-        
-        # Store temp directory for next steps
-        echo "TEMP_DEPLOY_DIR=$tempDir" >> $env:GITHUB_ENV
-        
-        Write-Host "Setup completed. Deploy directory: $tempDir"
-    
-    - name: Clone and Setup Private Repository
-      if: steps.check-bash.outputs.bash_available == 'false'
-      shell: powershell
-      run: |
-        cd $env:TEMP_DEPLOY_DIR
+        cd $tempDir
         
         # Clone private repository
         $token = "${{ inputs.github-token }}".Trim()
@@ -384,14 +374,6 @@ runs:
         
         # Install dependencies
         npm install
-        
-        Write-Host "Repository cloned and dependencies installed"
-    
-    - name: Generate OpenAPI Specification (PowerShell)
-      if: steps.check-bash.outputs.bash_available == 'false'
-      shell: powershell
-      run: |
-        cd "$env:TEMP_DEPLOY_DIR\private"
         
         # Check if wrangler.toml or wrangler.json or wrangler.jsonc exists
         if ((Test-Path wrangler.toml) -or (Test-Path wrangler.json) -or (Test-Path wrangler.jsonc)) {
@@ -407,7 +389,7 @@ runs:
           # Create logs directory
           New-Item -ItemType Directory -Path logs -Force | Out-Null
           
-          # Start Wrangler using PowerShell job with proper output handling
+          # Start Wrangler with output capture
           $currentDir = (Get-Location).Path
           $logsDir = Join-Path $currentDir "logs"
           $stdoutLog = Join-Path $logsDir "wrangler.stdout.log"
@@ -624,53 +606,42 @@ runs:
             New-Item -ItemType Directory -Path docs/doc -Force | Out-Null
             New-Item -ItemType Directory -Path docs/specification -Force | Out-Null
             Move-Item docs/openapi.json docs/specification/ -Force
-            
-            # Create Swagger UI HTML
-            $swaggerHtml = @'
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>API Documentation</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css">
-</head>
-<body>
-    <div id="swagger-ui"></div>
-    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-standalone-preset.js"></script>
-    <script>
-        window.onload = function() {
-            window.ui = SwaggerUIBundle({
-                url: "../specification/openapi.json",
-                dom_id: '#swagger-ui',
-                deepLinking: true,
-                presets: [
-                    SwaggerUIBundle.presets.apis,
-                    SwaggerUIStandalonePreset
-                ],
-                plugins: [
-                    SwaggerUIBundle.plugins.DownloadUrl
-                ],
-                layout: "StandaloneLayout"
-            });
-        };
-    </script>
-</body>
-</html>
-'@
-            $swaggerHtml | Out-File -FilePath docs/doc/index.html -Encoding UTF8
+            "<!DOCTYPE html>" | Out-File -FilePath docs/doc/index.html -Encoding UTF8
+            '<html lang="en">' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '<head>' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '    <meta charset="UTF-8">' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '    <title>API Documentation</title>' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css">' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '</head>' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '<body>' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '    <div id="swagger-ui"></div>' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-standalone-preset.js"></script>' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '    <script>' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '        window.onload = function() {' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '            window.ui = SwaggerUIBundle({' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '                url: "../specification/openapi.json",' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            "                dom_id: '#swagger-ui'," | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '                deepLinking: true,' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '                presets: [' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '                    SwaggerUIBundle.presets.apis,' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '                    SwaggerUIStandalonePreset' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '                ],' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '                plugins: [' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '                    SwaggerUIBundle.plugins.DownloadUrl' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '                ],' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '                layout: "StandaloneLayout"' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '            });' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '        };' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '    </script>' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '</body>' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
+            '</html>' | Out-File -FilePath docs/doc/index.html -Append -Encoding UTF8
           }
         } else {
           Write-Host "No wrangler.toml or wrangler.json found, skipping OpenAPI generation"
           # Create docs directory if it doesn't exist
           New-Item -ItemType Directory -Path docs -Force | Out-Null
         }
-    
-    - name: Run Tests and Deploy (PowerShell)
-      if: steps.check-bash.outputs.bash_available == 'false'
-      shell: powershell
-      run: |
-        cd "$env:TEMP_DEPLOY_DIR\private"
         
         # Run tests and generate coverage
         npm run test:coverage
@@ -699,16 +670,8 @@ runs:
         # Get original commit message (single line to avoid issues)
         $originalMsg = git log -1 --pretty=%s
         
-        # Store for next step
-        echo "ORIGINAL_MSG=$originalMsg" >> $env:GITHUB_ENV
-    
-    - name: Create PR and Deploy to GitHub Pages (PowerShell)
-      if: steps.check-bash.outputs.bash_available == 'false'
-      shell: powershell
-      run: |
-        cd "$env:TEMP_DEPLOY_DIR"
-        
         # Clone public repository to ensure common history
+        cd ..
         Write-Host "Cloning public repository to create branch with common history..."
         $publicToken = "${{ inputs.public-repo-token }}".Trim()
         $publicRepo = "${{ inputs.public-repo }}".Trim()
@@ -747,14 +710,14 @@ runs:
           Write-Host "No changes detected. Adding deployment timestamp..."
           # Force a change by adding/updating deployment info
           $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-          $deployInfo = "# Last deployment`n`nDeployed from private repository`nTimestamp: $timestamp`nCommit: $env:ORIGINAL_MSG"
+          $deployInfo = "# Last deployment`n`nDeployed from private repository`nTimestamp: $timestamp`nCommit: $originalMsg"
           $deployInfo | Out-File DEPLOY_INFO.md
           git add DEPLOY_INFO.md
           $hasChanges = $true
         }
         
         # Commit with original message
-        git commit -m "$env:ORIGINAL_MSG"
+        git commit -m "$originalMsg"
         
         # Push to the new branch
         Write-Host "Pushing to branch: $branchName"
@@ -771,8 +734,8 @@ runs:
           }
           
           $body = @{
-            "title" = "Deploy from private repository: $env:ORIGINAL_MSG"
-            "body" = "Automated deployment from private repository.`n`nOriginal commit message:`n$env:ORIGINAL_MSG"
+            "title" = "Deploy from private repository: $originalMsg"
+            "body" = "Automated deployment from private repository.`n`nOriginal commit message:`n$originalMsg"
             "head" = $branchName
             "base" = "main"
           } | ConvertTo-Json
@@ -809,9 +772,12 @@ runs:
           Write-Host "Continuing with GitHub Pages deployment..."
         }
         
-        # Deploy to GitHub Pages
+        # Deploy to GitHub Pages directly from private repository
         cd ..
-        git clone $publicRepoUrl public
+        $publicToken2 = "${{ inputs.public-repo-token }}".Trim()
+        $publicRepo2 = "${{ inputs.public-repo }}".Trim()
+        $publicRepoUrl2 = "https://x-access-token:${publicToken2}@github.com/${publicRepo2}.git"
+        git clone $publicRepoUrl2 public
         cd public
         
         # Checkout gh-pages branch
@@ -830,35 +796,34 @@ runs:
           Copy-Item -Recurse ../private/coverage .
           
           # Create root index.html with links
-          $indexHtml = @'
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Project Documentation</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 40px; }
-        h1 { color: #333; }
-        .links { margin-top: 30px; }
-        .link-item { margin: 15px 0; }
-        a { color: #0066cc; text-decoration: none; font-size: 18px; }
-        a:hover { text-decoration: underline; }
-    </style>
-</head>
-<body>
-    <h1>Project Documentation</h1>
-    <div class="links">
-        <div class="link-item">
-            <a href="./doc/">📚 API Documentation (Swagger UI)</a>
-        </div>
-        <div class="link-item">
-            <a href="./coverage/index.html">📊 Test Coverage Report</a>
-        </div>
-    </div>
-</body>
-</html>
-'@
-          $indexHtml | Out-File -FilePath index.html -Encoding UTF8
+          '<!DOCTYPE html>' | Out-File -FilePath index.html -Encoding UTF8
+          '<html lang="en">' | Out-File -FilePath index.html -Append -Encoding UTF8
+          '<head>' | Out-File -FilePath index.html -Append -Encoding UTF8
+          '    <meta charset="UTF-8">' | Out-File -FilePath index.html -Append -Encoding UTF8
+          '    <title>Project Documentation</title>' | Out-File -FilePath index.html -Append -Encoding UTF8
+          '    <style>' | Out-File -FilePath index.html -Append -Encoding UTF8
+          '        body { font-family: Arial, sans-serif; margin: 40px; }' | Out-File -FilePath index.html -Append -Encoding UTF8
+          '        h1 { color: #333; }' | Out-File -FilePath index.html -Append -Encoding UTF8
+          '        .links { margin-top: 30px; }' | Out-File -FilePath index.html -Append -Encoding UTF8
+          '        .link-item { margin: 15px 0; }' | Out-File -FilePath index.html -Append -Encoding UTF8
+          '        a { color: #0066cc; text-decoration: none; font-size: 18px; }' | Out-File -FilePath index.html -Append -Encoding UTF8
+          '        a:hover { text-decoration: underline; }' | Out-File -FilePath index.html -Append -Encoding UTF8
+          '    </style>' | Out-File -FilePath index.html -Append -Encoding UTF8
+          '</head>' | Out-File -FilePath index.html -Append -Encoding UTF8
+          '<body>' | Out-File -FilePath index.html -Append -Encoding UTF8
+          '    <h1>Project Documentation</h1>' | Out-File -FilePath index.html -Append -Encoding UTF8
+          '    <div class="links">' | Out-File -FilePath index.html -Append -Encoding UTF8
+          '        <div class="link-item">' | Out-File -FilePath index.html -Append -Encoding UTF8
+          '            <a href="./doc/">📚 API Documentation (Swagger UI)</a>' | Out-File -FilePath index.html -Append -Encoding UTF8
+          '        </div>' | Out-File -FilePath index.html -Append -Encoding UTF8
+          '        <div class="link-item">' | Out-File -FilePath index.html -Append -Encoding UTF8
+          '            <a href="./coverage/index.html">📊 Test Coverage Report</a>' | Out-File -FilePath index.html -Append -Encoding UTF8
+          '        </div>' | Out-File -FilePath index.html -Append -Encoding UTF8
+          '    </div>' | Out-File -FilePath index.html -Append -Encoding UTF8
+          '</body>' | Out-File -FilePath index.html -Append -Encoding UTF8
+          '</html>' | Out-File -FilePath index.html -Append -Encoding UTF8
+          
+          # doc and specification directories already created above if openapi.json exists
         } else {
           # If no docs (Swagger/OpenAPI), use coverage as root
           Copy-Item -Recurse ../private/coverage/* .
@@ -876,6 +841,4 @@ runs:
         # Cleanup
         cd $env:TEMP
         Start-Sleep -Seconds 3
-        Remove-Item -Recurse -Force $env:TEMP_DEPLOY_DIR -ErrorAction SilentlyContinue
-        
-        Write-Host "Deployment completed successfully!"
+        Remove-Item -Recurse -Force $tempDir -ErrorAction SilentlyContinue
