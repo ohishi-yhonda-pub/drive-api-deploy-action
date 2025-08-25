@@ -120,14 +120,37 @@ runs:
                 echo "Wrangler is responding (HTTP $rootStatus)"
               else
                 echo "Wrangler not ready yet..."
-                # Show logs on 5th attempt
-                if [ $i -eq 5 ]; then
-                  echo "=== Wrangler logs after 5 attempts ==="
+                # Show logs on 3rd and 5th attempt
+                if [ $i -eq 3 ] || [ $i -eq 5 ]; then
+                  echo "=== Wrangler logs after $i attempts ==="
                   echo "--- stdout ---"
-                  tail -n 20 logs/wrangler.stdout.log 2>/dev/null || echo "No stdout log"
-                  echo "--- stderr ---"  
-                  tail -n 20 logs/wrangler.stderr.log 2>/dev/null || echo "No stderr log"
+                  if [ -f logs/wrangler.stdout.log ]; then
+                    content=$(cat logs/wrangler.stdout.log)
+                    if [ -n "$content" ]; then
+                      echo "$content"
+                    else
+                      echo "Log file exists but is empty"
+                    fi
+                  else
+                    echo "No stdout log file"
+                  fi
+                  echo "--- stderr ---"
+                  if [ -f logs/wrangler.stderr.log ]; then
+                    content=$(cat logs/wrangler.stderr.log)
+                    if [ -n "$content" ]; then
+                      echo "$content"
+                    else
+                      echo "Log file exists but is empty"
+                    fi
+                  else
+                    echo "No stderr log file"
+                  fi
                   echo "=================="
+                  
+                  # Check if process is still alive
+                  if ! ps -p $wranglerPID > /dev/null; then
+                    echo "Wrangler process is no longer running!"
+                  fi
                 fi
                 sleep 2
                 continue
@@ -515,156 +538,82 @@ runs:
           # Create logs directory
           New-Item -ItemType Directory -Path logs -Force | Out-Null
           
-          # Start Wrangler using PowerShell job with proper output handling
+          # Simple direct execution
           $currentDir = (Get-Location).Path
           $logsDir = Join-Path $currentDir "logs"
           $stdoutLog = Join-Path $logsDir "wrangler.stdout.log"
           $stderrLog = Join-Path $logsDir "wrangler.stderr.log"
           
-          # Start Wrangler using PowerShell job with proper output handling
           Write-Host "Current directory: $currentDir"
           Write-Host "Logs will be written to: $stdoutLog and $stderrLog"
           
-          $wranglerJob = Start-Job -ScriptBlock {
-            param($workDir, $port)
-            Set-Location $workDir
-            
-            # Ensure npx is in PATH
-            $env:PATH = "C:\Program Files\nodejs;$env:PATH"
-            
-            # Create a separate process for wrangler that doesn't block
-            $psi = New-Object System.Diagnostics.ProcessStartInfo
-            $psi.FileName = "cmd.exe"
-            $psi.Arguments = "/c npm run dev -- --port $port 2>&1"
-            $psi.UseShellExecute = $false
-            $psi.RedirectStandardOutput = $true
-            $psi.RedirectStandardError = $true
-            $psi.WorkingDirectory = $workDir
-            $psi.CreateNoWindow = $true
-            
-            $process = New-Object System.Diagnostics.Process
-            $process.StartInfo = $psi
-            
-            # Register event handlers for output
-            $outputBuilder = New-Object System.Text.StringBuilder
-            $errorBuilder = New-Object System.Text.StringBuilder
-            
-            $outputHandler = {
-              if ($EventArgs.Data -ne $null) {
-                $null = $outputBuilder.AppendLine($EventArgs.Data)
-                Write-Host $EventArgs.Data
-              }
-            }
-            
-            $errorHandler = {
-              if ($EventArgs.Data -ne $null) {
-                $null = $errorBuilder.AppendLine($EventArgs.Data)
-                Write-Host "ERROR: $($EventArgs.Data)"
-              }
-            }
-            
-            Register-ObjectEvent -InputObject $process -EventName "OutputDataReceived" -Action $outputHandler | Out-Null
-            Register-ObjectEvent -InputObject $process -EventName "ErrorDataReceived" -Action $errorHandler | Out-Null
-            
-            # Start the process
-            $started = $process.Start()
-            $process.BeginOutputReadLine()
-            $process.BeginErrorReadLine()
-            
-            # Save output periodically
-            $logsDir = Join-Path $workDir "logs"
-            $stdoutPath = Join-Path $logsDir "wrangler.stdout.log"
-            $stderrPath = Join-Path $logsDir "wrangler.stderr.log"
-            
-            # Create empty log files
-            "" | Out-File -FilePath $stdoutPath -Encoding UTF8
-            "" | Out-File -FilePath $stderrPath -Encoding UTF8
-            
-            while (!$process.HasExited) {
-              Start-Sleep -Seconds 1
-              
-              # Write current output to files
-              if ($outputBuilder.Length -gt 0) {
-                $outputBuilder.ToString() | Out-File -FilePath $stdoutPath -Encoding UTF8
-              }
-              if ($errorBuilder.Length -gt 0) {
-                $errorBuilder.ToString() | Out-File -FilePath $stderrPath -Encoding UTF8
-              }
-            }
-            
-            # Final write
-            $outputBuilder.ToString() | Out-File -FilePath (Join-Path $logsDir "wrangler.stdout.log") -Encoding UTF8
-            $errorBuilder.ToString() | Out-File -FilePath (Join-Path $logsDir "wrangler.stderr.log") -Encoding UTF8
-            
-            return @{
-              ExitCode = $process.ExitCode
-              Output = $outputBuilder.ToString()
-              Error = $errorBuilder.ToString()
-            }
-          } -ArgumentList $currentDir, ${{ inputs.wrangler-port }}
+          # Start Wrangler directly using Start-Process
+          $psi = New-Object System.Diagnostics.ProcessStartInfo
+          $psi.FileName = "cmd.exe"
+          $psi.Arguments = "/c npm run dev -- --port ${{ inputs.wrangler-port }} > `"$stdoutLog`" 2> `"$stderrLog`""
+          $psi.WorkingDirectory = $currentDir
+          $psi.UseShellExecute = $false
+          $psi.CreateNoWindow = $true
           
-          Write-Host "Wrangler job started with ID: $($wranglerJob.Id)"
+          $wranglerProcess = New-Object System.Diagnostics.Process
+          $wranglerProcess.StartInfo = $psi
+          $started = $wranglerProcess.Start()
+          
+          if ($started) {
+            Write-Host "Wrangler process started with PID: $($wranglerProcess.Id)"
+            $wranglerPID = $wranglerProcess.Id
+          } else {
+            Write-Host "ERROR: Failed to start Wrangler process"
+          }
+          
           Start-Sleep -Seconds 5
           
-          # Check if Wrangler job is still running
-          if ($wranglerJob.State -ne "Running") {
-            Write-Host "ERROR: Wrangler job terminated with state: $($wranglerJob.State)"
-            
-            # Try to get job output
-            try {
-              $jobResult = Receive-Job -Job $wranglerJob -ErrorAction Stop
-              Write-Host "Job result:"
-              Write-Host ($jobResult | ConvertTo-Json -Depth 3)
-            } catch {
-              Write-Host "Could not retrieve job output: $_"
-            }
-            
-            if (Test-Path logs\wrangler.stdout.log) {
+          # Check if process is still running
+          try {
+            $proc = Get-Process -Id $wranglerPID -ErrorAction Stop
+            Write-Host "Wrangler process is running"
+          } catch {
+            Write-Host "ERROR: Wrangler process is not running"
+            # Check logs
+            if (Test-Path $stdoutLog) {
               Write-Host "=== Wrangler stdout ==="
-              Get-Content logs\wrangler.stdout.log
-            } else {
-              Write-Host "=== No stdout log found ==="
+              Get-Content $stdoutLog
             }
-            if (Test-Path logs\wrangler.stderr.log) {
+            if (Test-Path $stderrLog) {
               Write-Host "=== Wrangler stderr ==="
-              Get-Content logs\wrangler.stderr.log
-            } else {
-              Write-Host "=== No stderr log found ==="
+              Get-Content $stderrLog
             }
             Write-Host "===================="
-          } else {
-            # Log the actual port being used
-            Write-Host "Checking which port Wrangler is using..."
-            Start-Sleep -Seconds 3
-            
-            # Check Wrangler logs for actual port
-            $actualPort = $null
-            if (Test-Path logs\wrangler.stdout.log) {
-              # Look for common patterns in Wrangler output
-              $logContent = Get-Content logs\wrangler.stdout.log -Raw
-              if ($logContent -match "(Listening on|Local:|Ready on|Server running on|Running at).*:(\d+)") {
-                $actualPort = $matches[2]
-              } elseif ($logContent -match "http://.*:(\d+)") {
-                $actualPort = $matches[1]
-              }
-            }
-            
-            # If not found in logs, use the requested port
-            if (-not $actualPort) {
-              Write-Host "Could not detect port from Wrangler logs, using requested port"
-              $actualPort = "${{ inputs.wrangler-port }}"
-            }
-            
-            if ($actualPort) {
-              Write-Host "Wrangler is running on port: $actualPort"
-              # Store in environment for later use
-              echo "WRANGLER_ACTUAL_PORT=$actualPort" >> $env:GITHUB_ENV
-            } else {
-              Write-Host "Could not determine actual port, assuming it's using requested port: ${{ inputs.wrangler-port }}"
-              $actualPort = "${{ inputs.wrangler-port }}"
-              echo "WRANGLER_ACTUAL_PORT=${{ inputs.wrangler-port }}" >> $env:GITHUB_ENV
+          }
+          
+          # Log the actual port being used
+          Write-Host "Checking which port Wrangler is using..."
+          Start-Sleep -Seconds 3
+          
+          # Check Wrangler logs for actual port
+          $actualPort = $null
+          if (Test-Path $stdoutLog) {
+            # Look for common patterns in Wrangler output
+            $logContent = Get-Content $stdoutLog -Raw
+            if ($logContent -match "(Listening on|Local:|Ready on|Server running on|Running at).*:(\d+)") {
+              $actualPort = $matches[2]
+            } elseif ($logContent -match "http://.*:(\d+)") {
+              $actualPort = $matches[1]
             }
           }
+          
+          # If not found in logs, use the requested port
+          if (-not $actualPort) {
+            Write-Host "Could not detect port from Wrangler logs, using requested port"
+            $actualPort = "${{ inputs.wrangler-port }}"
+          }
+          
+          Write-Host "Using port: $actualPort"
+          
+          # Store log paths for later use
+          Set-Variable -Name "stdoutLog" -Value $stdoutLog -Scope 1
+          Set-Variable -Name "stderrLog" -Value $stderrLog -Scope 1
+          Set-Variable -Name "wranglerPID" -Value $wranglerPID -Scope 1
           
           # Wait for server and fetch OpenAPI
           $maxAttempts = 30
@@ -680,22 +629,40 @@ runs:
                   Write-Host "Wrangler is responding (HTTP 404)"
                 } else {
                   Write-Host "Wrangler not ready yet..."
-                  # Show logs on 5th attempt
-                  if ($i -eq 5) {
-                    Write-Host "=== Wrangler logs after 5 attempts ==="
+                  # Show logs on 3rd and 5th attempt
+                  if ($i -eq 3 -or $i -eq 5) {
+                    Write-Host "=== Wrangler logs after $i attempts ==="
                     Write-Host "--- stdout ---"
-                    if (Test-Path logs\wrangler.stdout.log) {
-                      Get-Content logs\wrangler.stdout.log -Tail 20
+                    if (Test-Path $stdoutLog) {
+                      $content = Get-Content $stdoutLog -Raw
+                      if ($content -and $content.Trim()) {
+                        Write-Host $content
+                      } else {
+                        Write-Host "Log file exists but is empty"
+                      }
                     } else {
-                      Write-Host "No stdout log"
+                      Write-Host "No stdout log file"
                     }
                     Write-Host "--- stderr ---"
-                    if (Test-Path logs\wrangler.stderr.log) {
-                      Get-Content logs\wrangler.stderr.log -Tail 20
+                    if (Test-Path $stderrLog) {
+                      $content = Get-Content $stderrLog -Raw
+                      if ($content -and $content.Trim()) {
+                        Write-Host $content
+                      } else {
+                        Write-Host "Log file exists but is empty"
+                      }
                     } else {
-                      Write-Host "No stderr log"
+                      Write-Host "No stderr log file"
                     }
                     Write-Host "=================="
+                    
+                    # Check if the process is still alive
+                    try {
+                      $proc = Get-Process -Id $wranglerPID -ErrorAction Stop
+                      Write-Host "Process is still running"
+                    } catch {
+                      Write-Host "Process is no longer running"
+                    }
                   }
                   Start-Sleep -Seconds 2
                   continue
@@ -705,23 +672,19 @@ runs:
             
             Write-Host "Attempt $i/$maxAttempts`: Checking Wrangler at http://localhost:$actualPort/specification"
             
-            # Check if job is still running
-            if ($wranglerJob.State -ne "Running") {
-              Write-Host "ERROR: Wrangler job is no longer running! State: $($wranglerJob.State)"
-              # Try to get job results
-              try {
-                $jobResult = Receive-Job -Job $wranglerJob -ErrorAction Stop
-                Write-Host "Job output: $jobResult"
-              } catch {
-                Write-Host "Could not retrieve job output: $_"
-              }
-              if (Test-Path logs\wrangler.stdout.log) {
+            # Check if process is still running
+            try {
+              $proc = Get-Process -Id $wranglerPID -ErrorAction Stop
+            } catch {
+              Write-Host "ERROR: Wrangler process is no longer running!"
+              # Show logs
+              if (Test-Path $stdoutLog) {
                 Write-Host "=== Wrangler stdout (last 50 lines) ==="
-                Get-Content logs\wrangler.stdout.log -Tail 50
+                Get-Content $stdoutLog -Tail 50
               }
-              if (Test-Path logs\wrangler.stderr.log) {
+              if (Test-Path $stderrLog) {
                 Write-Host "=== Wrangler stderr (last 50 lines) ==="
-                Get-Content logs\wrangler.stderr.log -Tail 50
+                Get-Content $stderrLog -Tail 50
               }
               Write-Host "===================="
               break
@@ -787,8 +750,14 @@ runs:
           }
           
           # Stop Wrangler
-          Stop-Job -Job $wranglerJob -ErrorAction SilentlyContinue
-          Remove-Job -Job $wranglerJob -Force -ErrorAction SilentlyContinue
+          if ($wranglerPID) {
+            try {
+              Stop-Process -Id $wranglerPID -Force -ErrorAction Stop
+              Write-Host "Wrangler process stopped"
+            } catch {
+              Write-Host "Could not stop Wrangler process: $_"
+            }
+          }
           Start-Sleep -Seconds 2
           Remove-Item .dev.vars -Force -ErrorAction SilentlyContinue
           
