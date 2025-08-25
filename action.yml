@@ -178,11 +178,15 @@ runs:
             curlExitCode=$?
             
             if [ $curlExitCode -eq 0 ] && [ "$httpStatus" = "200" ]; then
-              # Use jq to ensure proper JSON formatting and ASCII encoding
-              if command -v jq > /dev/null 2>&1; then
-                jq --ascii-output . docs/openapi.json.tmp > docs/openapi.json
+              # Ensure ASCII-only output for GitHub Pages compatibility
+              if command -v python3 > /dev/null 2>&1; then
+                # Use Python to ensure all non-ASCII chars are escaped
+                python3 -c "import json; content = open('docs/openapi.json.tmp', 'rb').read().decode('utf-8', errors='replace'); data = json.loads(content); json.dump(data, open('docs/openapi.json', 'w', encoding='ascii'), ensure_ascii=True, indent=2)"
+              elif command -v jq > /dev/null 2>&1; then
+                # Use jq with explicit ASCII output
+                LC_ALL=C jq --ascii-output . docs/openapi.json.tmp > docs/openapi.json
               else
-                # Fallback to simple copy if jq not available
+                # Fallback to simple copy if no tools available
                 cp docs/openapi.json.tmp docs/openapi.json
               fi
               rm -f docs/openapi.json.tmp
