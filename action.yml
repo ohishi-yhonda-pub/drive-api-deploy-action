@@ -111,6 +111,19 @@ runs:
           # Wait for server and fetch OpenAPI
           maxAttempts=30
           for i in $(seq 1 $maxAttempts); do
+            # First check if server is responding
+            if [ $i -le 5 ]; then
+              echo "Attempt $i/$maxAttempts: Checking if Wrangler is running at http://localhost:$actualPort/"
+              rootStatus=$(curl -w "%{http_code}" -o /dev/null -s http://localhost:$actualPort/ 2>&1)
+              if [ "$rootStatus" = "200" ] || [ "$rootStatus" = "404" ]; then
+                echo "Wrangler is responding (HTTP $rootStatus)"
+              else
+                echo "Wrangler not ready yet..."
+                sleep 2
+                continue
+              fi
+            fi
+            
             echo "Attempt $i/$maxAttempts: Checking Wrangler at http://localhost:$actualPort/specification"
             
             # Check if process is still running
@@ -632,6 +645,23 @@ runs:
           # Wait for server and fetch OpenAPI
           $maxAttempts = 30
           for ($i = 1; $i -le $maxAttempts; $i++) {
+            # First check if server is responding
+            if ($i -le 5) {
+              Write-Host "Attempt $i/$maxAttempts`: Checking if Wrangler is running at http://localhost:$actualPort/"
+              try {
+                $rootResponse = Invoke-WebRequest -Uri "http://localhost:$actualPort/" -UseBasicParsing -ErrorAction Stop -TimeoutSec 2
+                Write-Host "Wrangler is responding (HTTP $($rootResponse.StatusCode))"
+              } catch {
+                if ($_.Exception.Response -and $_.Exception.Response.StatusCode -eq 404) {
+                  Write-Host "Wrangler is responding (HTTP 404)"
+                } else {
+                  Write-Host "Wrangler not ready yet..."
+                  Start-Sleep -Seconds 2
+                  continue
+                }
+              }
+            }
+            
             Write-Host "Attempt $i/$maxAttempts`: Checking Wrangler at http://localhost:$actualPort/specification"
             
             # Check if job is still running
