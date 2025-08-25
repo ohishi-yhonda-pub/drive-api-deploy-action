@@ -178,9 +178,13 @@ runs:
             curlExitCode=$?
             
             if [ $curlExitCode -eq 0 ] && [ "$httpStatus" = "200" ]; then
-              # Save as UTF-8 with BOM for better compatibility
-              echo -ne '\xEF\xBB\xBF' > docs/openapi.json
-              cat docs/openapi.json.tmp >> docs/openapi.json
+              # Use jq to ensure proper JSON formatting and ASCII encoding
+              if command -v jq > /dev/null 2>&1; then
+                jq --ascii-output . docs/openapi.json.tmp > docs/openapi.json
+              else
+                # Fallback to simple copy if jq not available
+                cp docs/openapi.json.tmp docs/openapi.json
+              fi
               rm -f docs/openapi.json.tmp
               echo "SUCCESS: OpenAPI specification generated (HTTP $httpStatus)"
               break
@@ -705,9 +709,25 @@ runs:
               }
               $response = Invoke-WebRequest -Uri "http://localhost:$actualPort/specification" -Headers $headers -UseBasicParsing -ErrorAction Stop -TimeoutSec 5
               
-              # Save with UTF-8 BOM for better compatibility
-              $utf8WithBOM = New-Object System.Text.UTF8Encoding($true)
-              [System.IO.File]::WriteAllText((Join-Path (Get-Location) "docs/openapi.json"), $response.Content, $utf8WithBOM)
+              # Parse JSON and convert to ASCII-safe format
+              try {
+                $jsonObj = $response.Content | ConvertFrom-Json
+                $jsonString = $jsonObj | ConvertTo-Json -Depth 100
+                
+                # Convert non-ASCII characters to Unicode escape sequences
+                $asciiJson = [regex]::Replace($jsonString, '[^\x00-\x7F]', {
+                  param($m)
+                  '\u' + [Convert]::ToString([int][char]$m.Value, 16).PadLeft(4, '0')
+                })
+                
+                # Save without BOM
+                $utf8NoBOM = New-Object System.Text.UTF8Encoding($false)
+                [System.IO.File]::WriteAllText((Join-Path (Get-Location) "docs/openapi.json"), $asciiJson, $utf8NoBOM)
+              } catch {
+                # Fallback if JSON parsing fails
+                $utf8NoBOM = New-Object System.Text.UTF8Encoding($false)
+                [System.IO.File]::WriteAllText((Join-Path (Get-Location) "docs/openapi.json"), $response.Content, $utf8NoBOM)
+              }
               Write-Host "SUCCESS: OpenAPI specification generated (HTTP $($response.StatusCode))"
               break
             } catch {
