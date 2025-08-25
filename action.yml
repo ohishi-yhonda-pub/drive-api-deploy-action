@@ -88,16 +88,17 @@ runs:
             actualPort=""
             if [ -f logs/wrangler.stdout.log ]; then
               # Look for common patterns in Wrangler output
-              actualPort=$(grep -oE "(Listening on|Local:|Ready on|Server running on).*:([0-9]+)" logs/wrangler.stdout.log 2>/dev/null | grep -oE "[0-9]+" | tail -1)
+              actualPort=$(grep -oE "(Listening on|Local:|Ready on|Server running on|Running at).*:([0-9]+)" logs/wrangler.stdout.log 2>/dev/null | grep -oE "[0-9]+" | tail -1)
               if [ -z "$actualPort" ]; then
-                # Alternative pattern
-                actualPort=$(grep -oE "localhost:([0-9]+)" logs/wrangler.stdout.log 2>/dev/null | grep -oE "[0-9]+" | tail -1)
+                # Alternative patterns for Wrangler
+                actualPort=$(grep -oE "http://.*:([0-9]+)" logs/wrangler.stdout.log 2>/dev/null | grep -oE "[0-9]+" | tail -1)
               fi
             fi
             
-            # If not found in logs, check netstat
+            # If not found in logs, use the requested port
             if [ -z "$actualPort" ]; then
-              actualPort=$(netstat -tlnp 2>/dev/null | grep -E "node|wrangler" | grep -oE ':[0-9]+' | head -1 | cut -d: -f2)
+              echo "Could not detect port from Wrangler logs, using requested port"
+              actualPort=${{ inputs.wrangler-port }}
             fi
             
             if [ -n "$actualPort" ]; then
@@ -119,6 +120,15 @@ runs:
                 echo "Wrangler is responding (HTTP $rootStatus)"
               else
                 echo "Wrangler not ready yet..."
+                # Show logs on 5th attempt
+                if [ $i -eq 5 ]; then
+                  echo "=== Wrangler logs after 5 attempts ==="
+                  echo "--- stdout ---"
+                  tail -n 20 logs/wrangler.stdout.log 2>/dev/null || echo "No stdout log"
+                  echo "--- stderr ---"  
+                  tail -n 20 logs/wrangler.stderr.log 2>/dev/null || echo "No stderr log"
+                  echo "=================="
+                fi
                 sleep 2
                 continue
               fi
@@ -611,24 +621,17 @@ runs:
             if (Test-Path logs\wrangler.stdout.log) {
               # Look for common patterns in Wrangler output
               $logContent = Get-Content logs\wrangler.stdout.log -Raw
-              if ($logContent -match "(Listening on|Local:|Ready on|Server running on).*:(\d+)") {
+              if ($logContent -match "(Listening on|Local:|Ready on|Server running on|Running at).*:(\d+)") {
                 $actualPort = $matches[2]
-              } elseif ($logContent -match "localhost:(\d+)") {
+              } elseif ($logContent -match "http://.*:(\d+)") {
                 $actualPort = $matches[1]
               }
             }
             
-            # If not found in logs, check netstat
+            # If not found in logs, use the requested port
             if (-not $actualPort) {
-              try {
-                $portInfo = netstat -an | Select-String ":(\d+).*LISTENING" | Where-Object { $_ -match "127\.0\.0\.1:(\d+)" } | ForEach-Object { $matches[1] }
-                $nodeProcesses = Get-Process | Where-Object { $_.ProcessName -match "node" }
-                if ($nodeProcesses -and $portInfo) {
-                  $actualPort = $portInfo | Select-Object -First 1
-                }
-              } catch {
-                Write-Host "Error checking port: $_"
-              }
+              Write-Host "Could not detect port from Wrangler logs, using requested port"
+              $actualPort = "${{ inputs.wrangler-port }}"
             }
             
             if ($actualPort) {
@@ -656,6 +659,23 @@ runs:
                   Write-Host "Wrangler is responding (HTTP 404)"
                 } else {
                   Write-Host "Wrangler not ready yet..."
+                  # Show logs on 5th attempt
+                  if ($i -eq 5) {
+                    Write-Host "=== Wrangler logs after 5 attempts ==="
+                    Write-Host "--- stdout ---"
+                    if (Test-Path logs\wrangler.stdout.log) {
+                      Get-Content logs\wrangler.stdout.log -Tail 20
+                    } else {
+                      Write-Host "No stdout log"
+                    }
+                    Write-Host "--- stderr ---"
+                    if (Test-Path logs\wrangler.stderr.log) {
+                      Get-Content logs\wrangler.stderr.log -Tail 20
+                    } else {
+                      Write-Host "No stderr log"
+                    }
+                    Write-Host "=================="
+                  }
                   Start-Sleep -Seconds 2
                   continue
                 }
