@@ -178,15 +178,9 @@ runs:
             curlExitCode=$?
             
             if [ $curlExitCode -eq 0 ] && [ "$httpStatus" = "200" ]; then
-              # Convert non-ASCII characters to Unicode escape sequences for compatibility
-              if command -v python3 > /dev/null 2>&1; then
-                python3 -c "import json; data = json.load(open('docs/openapi.json.tmp', 'r', encoding='utf-8')); json.dump(data, open('docs/openapi.json', 'w', encoding='utf-8'), ensure_ascii=True, indent=2)"
-              elif command -v python > /dev/null 2>&1; then
-                python -c "import json; data = json.load(open('docs/openapi.json.tmp', 'r')); json.dump(data, open('docs/openapi.json', 'w'), ensure_ascii=True, indent=2)"
-              else
-                # Fallback to just copy if Python not available
-                mv docs/openapi.json.tmp docs/openapi.json
-              fi
+              # Save as UTF-8 with BOM for better compatibility
+              echo -ne '\xEF\xBB\xBF' > docs/openapi.json
+              cat docs/openapi.json.tmp >> docs/openapi.json
               rm -f docs/openapi.json.tmp
               echo "SUCCESS: OpenAPI specification generated (HTTP $httpStatus)"
               break
@@ -377,6 +371,12 @@ runs:
         if [ -d ../private/docs ] && [ "$(ls -A ../private/docs)" ]; then
           cp -r ../private/docs/* .
           cp -r ../private/coverage .
+          
+          # Create .nojekyll file to prevent Jekyll processing
+          touch .nojekyll
+          
+          # Create _config.yml for GitHub Pages encoding
+          echo 'encoding: UTF-8' > _config.yml
           
           # Create root index.html with links
           echo '<!DOCTYPE html>' > index.html
@@ -705,22 +705,9 @@ runs:
               }
               $response = Invoke-WebRequest -Uri "http://localhost:$actualPort/specification" -Headers $headers -UseBasicParsing -ErrorAction Stop -TimeoutSec 5
               
-              # Convert non-ASCII characters to Unicode escape sequences for compatibility
-              $jsonData = $response.Content | ConvertFrom-Json
-              $jsonWithEscapes = $jsonData | ConvertTo-Json -Depth 100 -Compress
-              
-              # PowerShell ConvertTo-Json doesn't have ensure_ascii equivalent, so use regex
-              $jsonEscaped = [regex]::Replace($jsonWithEscapes, '[^\x00-\x7F]', {
-                param($m)
-                '\u' + [Convert]::ToString([int][char]$m.Value, 16).PadLeft(4, '0')
-              })
-              
-              # Pretty print the JSON
-              $prettyJson = $jsonEscaped | ConvertFrom-Json | ConvertTo-Json -Depth 100
-              
-              # Save as plain UTF-8 (no BOM needed since all non-ASCII is escaped)
-              $utf8NoBOM = New-Object System.Text.UTF8Encoding($false)
-              [System.IO.File]::WriteAllText((Join-Path (Get-Location) "docs/openapi.json"), $prettyJson, $utf8NoBOM)
+              # Save with UTF-8 BOM for better compatibility
+              $utf8WithBOM = New-Object System.Text.UTF8Encoding($true)
+              [System.IO.File]::WriteAllText((Join-Path (Get-Location) "docs/openapi.json"), $response.Content, $utf8WithBOM)
               Write-Host "SUCCESS: OpenAPI specification generated (HTTP $($response.StatusCode))"
               break
             } catch {
@@ -993,6 +980,12 @@ runs:
         if ((Test-Path ../private/docs) -and (Get-ChildItem ../private/docs -Force)) {
           Copy-Item -Recurse ../private/docs/* .
           Copy-Item -Recurse ../private/coverage .
+          
+          # Create .nojekyll file to prevent Jekyll processing
+          New-Item -ItemType File -Name ".nojekyll" -Force | Out-Null
+          
+          # Create _config.yml for GitHub Pages encoding
+          "encoding: UTF-8" | Out-File -FilePath "_config.yml" -Encoding UTF8
           
           # Create root index.html with links
           $indexHtml = "<!DOCTYPE html>`n"
