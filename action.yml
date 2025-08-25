@@ -495,12 +495,15 @@ runs:
             # Create a separate process for wrangler that doesn't block
             $psi = New-Object System.Diagnostics.ProcessStartInfo
             $psi.FileName = "cmd.exe"
-            $psi.Arguments = "/c set PORT=$port && npm run dev 2>&1"
+            $psi.Arguments = "/c npm run dev 2>&1"
             $psi.UseShellExecute = $false
             $psi.RedirectStandardOutput = $true
             $psi.RedirectStandardError = $true
             $psi.WorkingDirectory = $workDir
             $psi.CreateNoWindow = $true
+            
+            # Set environment variable
+            $psi.EnvironmentVariables["PORT"] = $port
             
             $process = New-Object System.Diagnostics.Process
             $process.StartInfo = $psi
@@ -579,12 +582,17 @@ runs:
               $portInfo = netstat -an | Select-String ":(\d+).*LISTENING" | Where-Object { $_ -match "127\.0\.0\.1:(\d+)" } | ForEach-Object { $matches[1] }
               $nodeProcesses = Get-Process | Where-Object { $_.ProcessName -match "node" }
               if ($nodeProcesses -and $portInfo) {
-                $actualPort = $portInfo | Where-Object { $_ -match "878\d" } | Select-Object -First 1
-                if ($actualPort) {
-                  Write-Host "Wrangler is running on port: $actualPort"
+                # First check if the requested port is listening
+                if ($portInfo -contains "${{ inputs.wrangler-port }}") {
+                  Write-Host "Wrangler is running on requested port: ${{ inputs.wrangler-port }}"
                 } else {
-                  Write-Host "Could not determine actual port from listening ports: $($portInfo -join ', ')"
-                  Write-Host "Assuming it's using requested port: ${{ inputs.wrangler-port }}"
+                  # Check for common dev server ports
+                  $devPorts = $portInfo | Where-Object { [int]$_ -ge 3000 -and [int]$_ -le 65535 }
+                  if ($devPorts) {
+                    Write-Host "Found listening ports: $($devPorts -join ', ')"
+                    Write-Host "Note: Wrangler may be using a different port than requested"
+                  }
+                  Write-Host "Continuing with requested port: ${{ inputs.wrangler-port }}"
                 }
               } else {
                 Write-Host "Could not determine actual port, assuming it's using requested port: ${{ inputs.wrangler-port }}"
