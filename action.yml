@@ -173,12 +173,17 @@ runs:
             # Ensure docs directory exists
             mkdir -p docs
             
-            # Try to fetch OpenAPI spec with detailed error
-            httpStatus=$(curl -w "%{http_code}" -o docs/openapi.json.tmp -s http://localhost:$actualPort/specification 2>&1)
+            # Try to fetch OpenAPI spec with detailed error (ensure UTF-8 encoding)
+            httpStatus=$(curl -H "Accept-Charset: utf-8" -w "%{http_code}" -o docs/openapi.json.tmp -s http://localhost:$actualPort/specification 2>&1)
             curlExitCode=$?
             
             if [ $curlExitCode -eq 0 ] && [ "$httpStatus" = "200" ]; then
-              mv docs/openapi.json.tmp docs/openapi.json
+              # Ensure the file is UTF-8 encoded
+              if command -v iconv > /dev/null 2>&1; then
+                iconv -f UTF-8 -t UTF-8 docs/openapi.json.tmp > docs/openapi.json 2>/dev/null || mv docs/openapi.json.tmp docs/openapi.json
+              else
+                mv docs/openapi.json.tmp docs/openapi.json
+              fi
               echo "SUCCESS: OpenAPI specification generated (HTTP $httpStatus)"
               break
             else
@@ -689,8 +694,15 @@ runs:
               # Ensure docs directory exists
               New-Item -ItemType Directory -Path docs -Force | Out-Null
               
-              $response = Invoke-WebRequest -Uri "http://localhost:$actualPort/specification" -UseBasicParsing -ErrorAction Stop -TimeoutSec 5
-              $response.Content | Out-File -FilePath docs/openapi.json -Encoding UTF8
+              # Request with UTF-8 encoding
+              $headers = @{
+                "Accept-Charset" = "utf-8"
+              }
+              $response = Invoke-WebRequest -Uri "http://localhost:$actualPort/specification" -Headers $headers -UseBasicParsing -ErrorAction Stop -TimeoutSec 5
+              
+              # Save with explicit UTF-8 encoding
+              $utf8NoBOM = New-Object System.Text.UTF8Encoding($false)
+              [System.IO.File]::WriteAllText((Join-Path (Get-Location) "docs/openapi.json"), $response.Content, $utf8NoBOM)
               Write-Host "SUCCESS: OpenAPI specification generated (HTTP $($response.StatusCode))"
               break
             } catch {
