@@ -26,6 +26,11 @@
 - ランナーにGitがインストールされていること
 - Wrangler設定を持つCloudflare Workersプロジェクト
 - 機密ファイルを`filter=git-crypt`でマークする`.gitattributes`ファイル
+- 下記でアクセスできる必要があります
+  - http://localhost:8787 - APIエンドポイント
+  - http://localhost:8787/doc - Swagger UI
+  - http://localhost:8787/specification - OpenAPI仕様
+
 
 ## 説明
 
