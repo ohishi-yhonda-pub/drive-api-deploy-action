@@ -79,6 +79,16 @@ runs:
             echo "=== Wrangler stderr ==="
             cat logs/wrangler.stderr.log || echo "No stderr log found"
             echo "===================="
+          else
+            # Log the actual port being used
+            echo "Checking which port Wrangler is using..."
+            sleep 2
+            actualPort=$(netstat -tlnp 2>/dev/null | grep -E "node|wrangler" | grep -oE ':[0-9]+' | head -1 | cut -d: -f2)
+            if [ -n "$actualPort" ]; then
+              echo "Wrangler is running on port: $actualPort"
+            else
+              echo "Could not determine actual port, assuming it's using requested port: ${{ inputs.wrangler-port }}"
+            fi
           fi
           
           # Wait for server and fetch OpenAPI
@@ -96,6 +106,9 @@ runs:
               echo "===================="
               break
             fi
+            
+            # Ensure docs directory exists
+            mkdir -p docs
             
             # Try to fetch OpenAPI spec with detailed error
             httpStatus=$(curl -w "%{http_code}" -o docs/openapi.json.tmp -s http://localhost:${{ inputs.wrangler-port }}/specification 2>&1)
@@ -472,6 +485,28 @@ runs:
               Get-Content logs\wrangler.stderr.log
             }
             Write-Host "===================="
+          } else {
+            # Log the actual port being used
+            Write-Host "Checking which port Wrangler is using..."
+            Start-Sleep -Seconds 2
+            try {
+              $portInfo = netstat -an | Select-String ":(\d+).*LISTENING" | Where-Object { $_ -match "127\.0\.0\.1:(\d+)" } | ForEach-Object { $matches[1] }
+              $nodeProcesses = Get-Process | Where-Object { $_.ProcessName -match "node" }
+              if ($nodeProcesses -and $portInfo) {
+                $actualPort = $portInfo | Where-Object { $_ -match "878\d" } | Select-Object -First 1
+                if ($actualPort) {
+                  Write-Host "Wrangler is running on port: $actualPort"
+                } else {
+                  Write-Host "Could not determine actual port from listening ports: $($portInfo -join ', ')"
+                  Write-Host "Assuming it's using requested port: ${{ inputs.wrangler-port }}"
+                }
+              } else {
+                Write-Host "Could not determine actual port, assuming it's using requested port: ${{ inputs.wrangler-port }}"
+              }
+            } catch {
+              Write-Host "Error checking port: $_"
+              Write-Host "Assuming Wrangler is using requested port: ${{ inputs.wrangler-port }}"
+            }
           }
           
           # Wait for server and fetch OpenAPI
@@ -502,6 +537,9 @@ runs:
             }
             
             try {
+              # Ensure docs directory exists
+              New-Item -ItemType Directory -Path docs -Force | Out-Null
+              
               $response = Invoke-WebRequest -Uri "http://localhost:${{ inputs.wrangler-port }}/specification" -UseBasicParsing -ErrorAction Stop -TimeoutSec 5
               $response.Content | Out-File -FilePath docs/openapi.json -Encoding UTF8
               Write-Host "SUCCESS: OpenAPI specification generated (HTTP $($response.StatusCode))"
