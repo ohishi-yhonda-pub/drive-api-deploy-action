@@ -174,6 +174,9 @@ runs:
             mkdir -p docs
             
             # Try to fetch OpenAPI spec with detailed error (ensure UTF-8 encoding)
+            # Set locale to ensure UTF-8 handling
+            export LC_ALL=C.UTF-8
+            export LANG=C.UTF-8
             httpStatus=$(curl -H "Accept-Charset: utf-8" -H "Accept: application/json; charset=utf-8" -w "%{http_code}" -o docs/openapi.json.tmp -s http://localhost:$actualPort/specification 2>&1)
             curlExitCode=$?
             
@@ -715,7 +718,9 @@ runs:
               
               # Parse JSON and convert to ASCII-safe format
               try {
-                $jsonObj = $response.Content | ConvertFrom-Json
+                # Ensure we're working with UTF-8 encoded content
+                $utf8Content = [System.Text.Encoding]::UTF8.GetString([System.Text.Encoding]::Default.GetBytes($response.Content))
+                $jsonObj = $utf8Content | ConvertFrom-Json
                 $jsonString = $jsonObj | ConvertTo-Json -Depth 100
                 
                 # Convert non-ASCII characters to Unicode escape sequences
