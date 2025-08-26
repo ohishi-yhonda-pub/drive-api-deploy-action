@@ -285,6 +285,22 @@ runs:
         git config user.email "github-actions[bot]@users.noreply.github.com"
         git config user.name "github-actions[bot]"
         
+        # Check if main branch exists
+        if git show-ref --verify --quiet refs/remotes/origin/main; then
+          echo "Main branch exists"
+          git checkout main
+        else
+          echo "Main branch doesn't exist, creating it"
+          git checkout -b main
+          # Create initial commit if repository is empty
+          if [ -z "$(git log --oneline -1 2>/dev/null)" ]; then
+            echo "# ${{ inputs.public-repo }}" > README.md
+            git add README.md
+            git commit -m "Initial commit"
+            git push -u origin main
+          fi
+        fi
+        
         # Create branch name
         BRANCH_NAME="deploy-$(date +%Y%m%d%H%M%S)"
         
@@ -867,6 +883,28 @@ runs:
         # Configure git
         git config user.email "github-actions[bot]@users.noreply.github.com"
         git config user.name "github-actions[bot]"
+        
+        # Check if main branch exists
+        try {
+          $mainExists = git show-ref --verify --quiet refs/remotes/origin/main 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Main branch exists"
+            git checkout main
+          } else {
+            throw "Main branch doesn't exist"
+          }
+        } catch {
+          Write-Host "Main branch doesn't exist, creating it"
+          git checkout -b main
+          # Create initial commit if repository is empty
+          $logOutput = git log --oneline -1 2>$null
+          if (-not $logOutput) {
+            "# ${{ inputs.public-repo }}" | Out-File README.md
+            git add README.md
+            git commit -m "Initial commit"
+            git push -u origin main
+          }
+        }
         
         # Create branch name
         $branchName = "deploy-" + (Get-Date -Format "yyyyMMddHHmmss")
