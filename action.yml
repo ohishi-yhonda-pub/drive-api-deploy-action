@@ -179,6 +179,23 @@ runs:
             
             if [ $curlExitCode -eq 0 ] && [ "$httpStatus" = "200" ]; then
               echo "SUCCESS: OpenAPI specification generated (HTTP $httpStatus)"
+              
+              # Debug: Check file encoding and content
+              echo "=== Debug: Checking OpenAPI file encoding ==="
+              if command -v file > /dev/null 2>&1; then
+                file docs/openapi.json
+              fi
+              echo "=== Debug: First 500 characters of OpenAPI file ==="
+              head -c 500 docs/openapi.json | od -c
+              echo ""
+              echo "=== Debug: Checking for Japanese characters ==="
+              if grep -q "[ぁ-んァ-ヶー一-龠]" docs/openapi.json; then
+                echo "Japanese characters found in file"
+              else
+                echo "No Japanese characters found in file"
+              fi
+              echo "==================================="
+              
               break
             else
               echo "Failed: curl exit code=$curlExitCode, HTTP status=$httpStatus"
