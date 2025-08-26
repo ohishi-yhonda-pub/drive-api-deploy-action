@@ -738,6 +738,25 @@ runs:
               $utf8NoBOM = New-Object System.Text.UTF8Encoding($false)
               [System.IO.File]::WriteAllText((Join-Path (Get-Location) "docs/openapi.json"), $response.Content, $utf8NoBOM)
               Write-Host "SUCCESS: OpenAPI specification generated (HTTP $($response.StatusCode))"
+              
+              # Debug: Check file encoding and content
+              Write-Host "=== Debug: Checking OpenAPI file encoding ==="
+              $fileContent = Get-Content -Path "docs/openapi.json" -Raw
+              Write-Host "File size: $((Get-Item "docs/openapi.json").Length) bytes"
+              Write-Host "=== Debug: First 500 characters of response ==="
+              Write-Host $response.Content.Substring(0, [Math]::Min(500, $response.Content.Length))
+              Write-Host "=== Debug: First 500 characters from saved file ==="
+              Write-Host $fileContent.Substring(0, [Math]::Min(500, $fileContent.Length))
+              Write-Host "=== Debug: Checking for Japanese characters ==="
+              if ($fileContent -match "[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]") {
+                Write-Host "Japanese characters found in file"
+              } else {
+                Write-Host "No Japanese characters found in file"
+              }
+              Write-Host "=== Debug: Response encoding ==="
+              Write-Host "Response Content-Type: $($response.Headers['Content-Type'])"
+              Write-Host "==================================="
+              
               break
             } catch {
               $errorDetails = $_.Exception.Message
