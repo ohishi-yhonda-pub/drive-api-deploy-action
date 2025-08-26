@@ -10,7 +10,8 @@
       "Bash(gh run watch:*)",
       "Bash(gh run list:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "WebFetch(domain:ohishi-yhonda-pub.github.io)"
     ],
     "deny": []
   }

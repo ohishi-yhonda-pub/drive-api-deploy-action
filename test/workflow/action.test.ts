@@ -52,23 +52,25 @@ describe('GitHub Action Workflow', () => {
       const bashStep = actionConfig.runs.steps.find((step: any) => 
         step.name === 'Process and Deploy (Bash)'
       )
-      const powershellStep = actionConfig.runs.steps.find((step: any) => 
-        step.name === 'Process and Deploy (PowerShell)'
+      const powershellSetupStep = actionConfig.runs.steps.find((step: any) => 
+        step.name === 'Setup PowerShell Environment'
       )
 
       expect(bashStep).toBeDefined()
-      expect(powershellStep).toBeDefined()
+      expect(powershellSetupStep).toBeDefined()
       
       expect(bashStep.shell).toBe('bash')
-      expect(powershellStep.shell).toBe('powershell')
+      expect(powershellSetupStep.shell).toBe('powershell')
     })
 
     it('should have conditional execution based on bash availability', () => {
       const bashStep = actionConfig.runs.steps[1]
-      const powershellStep = actionConfig.runs.steps[2]
+      const powershellSetupStep = actionConfig.runs.steps.find((step: any) => 
+        step.name === 'Setup PowerShell Environment'
+      )
 
       expect(bashStep.if).toBe("steps.check-bash.outputs.bash_available == 'true'")
-      expect(powershellStep.if).toBe("steps.check-bash.outputs.bash_available == 'false'")
+      expect(powershellSetupStep.if).toBe("steps.check-bash.outputs.bash_available == 'false'")
     })
   })
 
@@ -89,140 +91,192 @@ describe('GitHub Action Workflow', () => {
 
     it('should use secure token passing with x-access-token', () => {
       const bashStep = actionConfig.runs.steps[1]
-      const powershellStep = actionConfig.runs.steps[2]
+      const powershellPRStep = actionConfig.runs.steps.find((step: any) => 
+        step.name === 'Create PR and Deploy to GitHub Pages (PowerShell)'
+      )
 
       expect(bashStep.run).toMatch(/x-access-token:\$\{\{ inputs\.github-token \}\}/)
       // PowerShell uses variable substitution pattern
-      expect(powershellStep.run).toMatch(/x-access-token:\${token}|x-access-token:\${publicToken}/)
+      expect(powershellPRStep).toBeDefined()
+      expect(powershellPRStep.run).toMatch(/x-access-token:\${publicToken}/)
     })
 
     it('should clean up temporary files and directories', () => {
       const bashStep = actionConfig.runs.steps[1]
-      const powershellStep = actionConfig.runs.steps[2]
+      const powershellPRStep = actionConfig.runs.steps.find((step: any) => 
+        step.name === 'Create PR and Deploy to GitHub Pages (PowerShell)'
+      )
 
       expect(bashStep.run).toMatch(/rm -rf "\$tempDir"/)
-      expect(powershellStep.run).toMatch(/Remove-Item -Recurse -Force \$tempDir/)
+      expect(powershellPRStep).toBeDefined()
+      expect(powershellPRStep.run).toMatch(/Remove-Item -Recurse -Force \$env:TEMP_DEPLOY_DIR/)
     })
   })
 
   describe('PowerShell URL Construction', () => {
     it('should use Trim() to remove whitespace from tokens and repos', () => {
-      const powershellStep = actionConfig.runs.steps[2]
+      const cloneStep = actionConfig.runs.steps.find((step: any) => 
+        step.name === 'Clone and Setup Private Repository' && step.shell === 'powershell'
+      )
+      const prStep = actionConfig.runs.steps.find((step: any) => 
+        step.name === 'Create PR and Deploy to GitHub Pages (PowerShell)'
+      )
       
-      // Check for Trim() usage on tokens
-      expect(powershellStep.run).toMatch(/\$token = "\$\{\{ inputs\.github-token \}\}"\.Trim\(\)/)
-      expect(powershellStep.run).toMatch(/\$publicToken = "\$\{\{ inputs\.public-repo-token \}\}"\.Trim\(\)/)
-      expect(powershellStep.run).toMatch(/\$publicToken2 = "\$\{\{ inputs\.public-repo-token \}\}"\.Trim\(\)/)
+      // Check for Trim() usage in Clone step
+      expect(cloneStep).toBeDefined()
+      expect(cloneStep.run).toMatch(/\$token = "\$\{\{ inputs\.github-token \}\}"\.Trim\(\)/)
+      expect(cloneStep.run).toMatch(/\$repo = "\$\{\{ inputs\.private-repo \}\}"\.Trim\(\)/)
       
-      // Check for Trim() usage on repos
-      expect(powershellStep.run).toMatch(/\$repo = "\$\{\{ inputs\.private-repo \}\}"\.Trim\(\)/)
-      expect(powershellStep.run).toMatch(/\$publicRepo = "\$\{\{ inputs\.public-repo \}\}"\.Trim\(\)/)
-      expect(powershellStep.run).toMatch(/\$publicRepo2 = "\$\{\{ inputs\.public-repo \}\}"\.Trim\(\)/)
+      // Check for Trim() usage in PR step
+      expect(prStep).toBeDefined()
+      expect(prStep.run).toMatch(/\$publicToken = "\$\{\{ inputs\.public-repo-token \}\}"\.Trim\(\)/)
+      expect(prStep.run).toMatch(/\$publicRepo = "\$\{\{ inputs\.public-repo \}\}"\.Trim\(\)/)
     })
 
     it('should construct URLs using PowerShell string interpolation', () => {
-      const powershellStep = actionConfig.runs.steps[2]
+      const cloneStep = actionConfig.runs.steps.find((step: any) => 
+        step.name === 'Clone and Setup Private Repository' && step.shell === 'powershell'
+      )
+      const prStep = actionConfig.runs.steps.find((step: any) => 
+        step.name === 'Create PR and Deploy to GitHub Pages (PowerShell)'
+      )
       
       // Check URL construction pattern
-      expect(powershellStep.run).toMatch(/\$privateRepoUrl = "https:\/\/x-access-token:\$\{token\}@github\.com\/\$\{repo\}\.git"/)
-      expect(powershellStep.run).toMatch(/\$publicRepoUrl = "https:\/\/x-access-token:\$\{publicToken\}@github\.com\/\$\{publicRepo\}\.git"/)
-      expect(powershellStep.run).toMatch(/\$publicRepoUrl2 = "https:\/\/x-access-token:\$\{publicToken2\}@github\.com\/\$\{publicRepo2\}\.git"/)
+      expect(cloneStep).toBeDefined()
+      expect(cloneStep.run).toMatch(/\$privateRepoUrl = "https:\/\/x-access-token:\$\{token\}@github\.com\/\$\{repo\}\.git"/)
+      
+      expect(prStep).toBeDefined()
+      expect(prStep.run).toMatch(/\$publicRepoUrl = "https:\/\/x-access-token:\$\{publicToken\}@github\.com\/\$\{publicRepo\}\.git"/)
     })
 
     it('should use variable references in git clone commands', () => {
-      const powershellStep = actionConfig.runs.steps[2]
+      const cloneStep = actionConfig.runs.steps.find((step: any) => 
+        step.name === 'Clone and Setup Private Repository' && step.shell === 'powershell'
+      )
+      const prStep = actionConfig.runs.steps.find((step: any) => 
+        step.name === 'Create PR and Deploy to GitHub Pages (PowerShell)'
+      )
       
       // Check git clone uses variables
-      expect(powershellStep.run).toMatch(/git clone \$privateRepoUrl private/)
-      expect(powershellStep.run).toMatch(/git clone \$publicRepoUrl public-temp/)
-      expect(powershellStep.run).toMatch(/git clone \$publicRepoUrl2 public/)
+      expect(cloneStep).toBeDefined()
+      expect(cloneStep.run).toMatch(/git clone \$privateRepoUrl private/)
+      
+      expect(prStep).toBeDefined()
+      expect(prStep.run).toMatch(/git clone \$publicRepoUrl public-temp/)
     })
   })
 
   describe('Workflow Logic Validation', () => {
     it('should handle .dev.vars template file correctly', () => {
       const bashStep = actionConfig.runs.steps[1]
-      const powershellStep = actionConfig.runs.steps[2]
+      const openAPIStep = actionConfig.runs.steps.find((step: any) => 
+        step.name === 'Generate OpenAPI Specification (PowerShell)'
+      )
 
       expect(bashStep.run).toMatch(/if \[ -f \.dev\.vars\.template \]; then/)
       expect(bashStep.run).toMatch(/cp \.dev\.vars\.template \.dev\.vars/)
       
-      expect(powershellStep.run).toMatch(/if \(Test-Path \.dev\.vars\.template\)/)
-      expect(powershellStep.run).toMatch(/Copy-Item \.dev\.vars\.template \.dev\.vars/)
+      expect(openAPIStep).toBeDefined()
+      expect(openAPIStep.run).toMatch(/if \(Test-Path \.dev\.vars\.template\)/)
+      expect(openAPIStep.run).toMatch(/Copy-Item \.dev\.vars\.template \.dev\.vars/)
     })
 
     it('should wait for wrangler server with timeout', () => {
       const bashStep = actionConfig.runs.steps[1]
-      const powershellStep = actionConfig.runs.steps[2]
+      const openAPIStep = actionConfig.runs.steps.find((step: any) => 
+        step.name === 'Generate OpenAPI Specification (PowerShell)'
+      )
 
       expect(bashStep.run).toMatch(/maxAttempts=30/)
-      expect(powershellStep.run).toMatch(/\$maxAttempts = 30/)
+      expect(openAPIStep).toBeDefined()
+      expect(openAPIStep.run).toMatch(/\$maxAttempts = 30/)
     })
 
     it('should generate OpenAPI specification', () => {
       const bashStep = actionConfig.runs.steps[1]
-      const powershellStep = actionConfig.runs.steps[2]
+      
+      // Find the PowerShell OpenAPI generation step
+      const powershellOpenAPIStep = actionConfig.runs.steps.find((step: any) => 
+        step.name === 'Generate OpenAPI Specification (PowerShell)'
+      )
 
-      expect(bashStep.run).toMatch(/curl -s http:\/\/localhost:\$\{\{ inputs\.wrangler-port \}\}\/specification > docs\/openapi\.json/)
-      expect(powershellStep.run).toMatch(/Invoke-WebRequest -Uri "http:\/\/localhost:\$\{\{ inputs\.wrangler-port \}\}\/specification"/)
+      expect(bashStep.run).toMatch(/curl -w "%{http_code}" -o docs\/openapi\.json -s http:\/\/localhost:\$actualPort\/specification/)
+      expect(powershellOpenAPIStep).toBeDefined()
+      expect(powershellOpenAPIStep.run).toMatch(/curl\.exe/)
     })
 
     it('should run test coverage', () => {
       const bashStep = actionConfig.runs.steps[1]
-      const powershellStep = actionConfig.runs.steps[2]
+      const powershellTestStep = actionConfig.runs.steps.find((step: any) => 
+        step.name === 'Run Tests and Deploy (PowerShell)'
+      )
 
       expect(bashStep.run).toMatch(/npm run test:coverage/)
-      expect(powershellStep.run).toMatch(/npm run test:coverage/)
+      expect(powershellTestStep).toBeDefined()
+      expect(powershellTestStep.run).toMatch(/npm run test:coverage/)
     })
 
     it('should handle git-crypt files removal', () => {
       const bashStep = actionConfig.runs.steps[1]
-      const powershellStep = actionConfig.runs.steps[2]
+      const testStep = actionConfig.runs.steps.find((step: any) => 
+        step.name === 'Run Tests and Deploy (PowerShell)'
+      )
 
       expect(bashStep.run).toMatch(/filter=git-crypt/)
-      expect(powershellStep.run).toMatch(/filter=git-crypt/)
+      expect(testStep).toBeDefined()
+      expect(testStep.run).toMatch(/filter=git-crypt/)
     })
 
     it('should create PR instead of pushing to main branch after removing sensitive files', () => {
       const bashStep = actionConfig.runs.steps[1]
-      const powershellStep = actionConfig.runs.steps[2]
+      const testStep = actionConfig.runs.steps.find((step: any) => 
+        step.name === 'Run Tests and Deploy (PowerShell)'
+      )
+      const prStep = actionConfig.runs.steps.find((step: any) => 
+        step.name === 'Create PR and Deploy to GitHub Pages (PowerShell)'
+      )
 
       // Check that sensitive files are removed
       expect(bashStep.run).toMatch(/# Remove sensitive files/)
-      expect(powershellStep.run).toMatch(/# Remove sensitive files/)
+      expect(testStep).toBeDefined()
+      expect(testStep.run).toMatch(/# Remove sensitive files/)
       
       // Check that it creates a branch with common history (not orphan)
       expect(bashStep.run).toMatch(/# Create a new branch from main/)
       expect(bashStep.run).toMatch(/git checkout -b \$BRANCH_NAME/)
-      expect(powershellStep.run).toMatch(/# Create a new branch from main/)
-      expect(powershellStep.run).toMatch(/git checkout -b \$branchName/)
+      expect(prStep).toBeDefined()
+      expect(prStep.run).toMatch(/# Create a new branch from main/)
+      expect(prStep.run).toMatch(/git checkout -b \$branchName/)
       
       // Check that it pushes to origin (not the old pattern)
       expect(bashStep.run).toMatch(/git push origin \$BRANCH_NAME/)
-      expect(powershellStep.run).toMatch(/git push origin \$branchName/)
+      expect(prStep.run).toMatch(/git push origin \$branchName/)
       
       // Check that PR is created
       expect(bashStep.run).toMatch(/gh pr create --repo/)
-      expect(powershellStep.run).toMatch(/Invoke-RestMethod -Uri .* -Method Post/)
+      expect(prStep.run).toMatch(/Invoke-RestMethod -Uri .* -Method Post/)
       
       // Check that PR is auto-merged
       expect(bashStep.run).toMatch(/gh pr merge/)
-      expect(powershellStep.run).toMatch(/Invoke-RestMethod -Uri .* -Method Put/)
+      expect(prStep.run).toMatch(/Invoke-RestMethod -Uri .* -Method Put/)
       
       // Check that original commit message is preserved
       expect(bashStep.run).toMatch(/git commit -m "\$ORIGINAL_MSG"/)
-      expect(powershellStep.run).toMatch(/git commit -m "\$originalMsg"/)
+      expect(prStep.run).toMatch(/git commit -m "\$env:ORIGINAL_MSG"/)
     })
 
     it('should deploy to GitHub Pages', () => {
       const bashStep = actionConfig.runs.steps[1]
-      const powershellStep = actionConfig.runs.steps[2]
+      const prStep = actionConfig.runs.steps.find((step: any) => 
+        step.name === 'Create PR and Deploy to GitHub Pages (PowerShell)'
+      )
 
       expect(bashStep.run).toMatch(/git checkout gh-pages/)
       expect(bashStep.run).toMatch(/git push origin gh-pages --force/)
       
-      expect(powershellStep.run).toMatch(/git checkout gh-pages/)
-      expect(powershellStep.run).toMatch(/git push origin gh-pages --force/)
+      expect(prStep).toBeDefined()
+      expect(prStep.run).toMatch(/git checkout gh-pages/)
+      expect(prStep.run).toMatch(/git push origin gh-pages --force/)
     })
   })
 })
