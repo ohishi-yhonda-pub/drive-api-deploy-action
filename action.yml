@@ -368,13 +368,18 @@ runs:
           echo "Pull request process completed!"
         fi
         
-        # Deploy to GitHub Pages directly from private repository
-        cd ..
-        git clone "https://x-access-token:${{ inputs.public-repo-token }}@github.com/${{ inputs.public-repo }}.git" public
-        cd public
+        # Deploy to GitHub Pages using existing clone
+        cd ../public-temp
         
-        # Checkout gh-pages branch
-        git checkout gh-pages 2>/dev/null || git checkout --orphan gh-pages
+        # Check if gh-pages branch exists
+        if git ls-remote --heads origin gh-pages | grep -q gh-pages; then
+          echo "gh-pages branch exists, checking out..."
+          git fetch origin gh-pages:gh-pages
+          git checkout gh-pages
+        else
+          echo "gh-pages branch doesn't exist, creating new orphan branch..."
+          git checkout --orphan gh-pages
+        fi
         
         # Clear existing content
         find . -maxdepth 1 -name .git -prune -o -exec rm -rf {} + 2>/dev/null || true
@@ -997,14 +1002,17 @@ runs:
         }
         
         # Deploy to GitHub Pages
-        cd ..
-        git clone $publicRepoUrl public
-        cd public
+        # Use the existing clone instead of creating a new one
+        cd ../public-temp
         
-        # Checkout gh-pages branch
-        try {
-          git checkout gh-pages 2>$null
-        } catch {
+        # Check if gh-pages branch exists and checkout
+        $ghPagesExists = git ls-remote --heads origin gh-pages
+        if ($ghPagesExists) {
+          Write-Host "gh-pages branch exists, checking out..."
+          git fetch origin gh-pages:gh-pages
+          git checkout gh-pages
+        } else {
+          Write-Host "gh-pages branch doesn't exist, creating new orphan branch..."
           git checkout --orphan gh-pages
         }
         
