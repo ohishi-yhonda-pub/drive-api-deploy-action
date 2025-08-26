@@ -297,8 +297,9 @@ runs:
             echo "# ${{ inputs.public-repo }}" > README.md
             git add README.md
             git commit -m "Initial commit"
-            git push -u origin main
           fi
+          # Always push main branch to ensure it exists on remote
+          git push -u origin main
         fi
         
         # Create branch name
@@ -908,8 +909,9 @@ runs:
             "# ${{ inputs.public-repo }}" | Out-File README.md
             git add README.md
             git commit -m "Initial commit"
-            git push -u origin main
           }
+          # Always push main branch to ensure it exists on remote
+          git push -u origin main
         }
         
         # Create branch name
