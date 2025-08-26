@@ -727,35 +727,25 @@ runs:
               # Ensure docs directory exists
               New-Item -ItemType Directory -Path docs -Force | Out-Null
               
-              # Request with UTF-8 encoding
-              $headers = @{
-                "Accept-Charset" = "utf-8"
-                "Accept" = "application/json; charset=utf-8"
-              }
-              $response = Invoke-WebRequest -Uri "http://localhost:$actualPort/specification" -Headers $headers -UseBasicParsing -ErrorAction Stop -TimeoutSec 5
+              # Use curl.exe to download the file directly
+              $curlPath = "curl.exe"
+              $outputFile = Join-Path (Get-Location) "docs/openapi.json"
               
-              # Save response directly without any conversion
-              $utf8NoBOM = New-Object System.Text.UTF8Encoding($false)
-              [System.IO.File]::WriteAllText((Join-Path (Get-Location) "docs/openapi.json"), $response.Content, $utf8NoBOM)
-              Write-Host "SUCCESS: OpenAPI specification generated (HTTP $($response.StatusCode))"
-              
-              # Debug: Check file encoding and content
-              Write-Host "=== Debug: Checking OpenAPI file encoding ==="
-              $fileContent = Get-Content -Path "docs/openapi.json" -Raw
-              Write-Host "File size: $((Get-Item "docs/openapi.json").Length) bytes"
-              Write-Host "=== Debug: First 500 characters of response ==="
-              Write-Host $response.Content.Substring(0, [Math]::Min(500, $response.Content.Length))
-              Write-Host "=== Debug: First 500 characters from saved file ==="
-              Write-Host $fileContent.Substring(0, [Math]::Min(500, $fileContent.Length))
-              Write-Host "=== Debug: Checking for Japanese characters ==="
-              if ($fileContent -match "[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]") {
-                Write-Host "Japanese characters found in file"
+              # Execute curl command
+              $curlResult = & $curlPath -s -o $outputFile "http://localhost:$actualPort/specification"
+              if ($LASTEXITCODE -eq 0) {
+                Write-Host "SUCCESS: OpenAPI specification generated using curl.exe"
+                
+                # Debug: Check file content
+                Write-Host "=== Debug: Checking downloaded file ==="
+                $fileContent = Get-Content -Path "docs/openapi.json" -Raw -Encoding UTF8
+                Write-Host "File size: $((Get-Item "docs/openapi.json").Length) bytes"
+                Write-Host "=== Debug: First 500 characters from file ==="
+                Write-Host $fileContent.Substring(0, [Math]::Min(500, $fileContent.Length))
+                Write-Host "==================================="
               } else {
-                Write-Host "No Japanese characters found in file"
+                Write-Host "ERROR: curl.exe failed with exit code $LASTEXITCODE"
               }
-              Write-Host "=== Debug: Response encoding ==="
-              Write-Host "Response Content-Type: $($response.Headers['Content-Type'])"
-              Write-Host "==================================="
               
               break
             } catch {
