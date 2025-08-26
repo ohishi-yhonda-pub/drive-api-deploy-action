@@ -173,26 +173,11 @@ runs:
             # Ensure docs directory exists
             mkdir -p docs
             
-            # Try to fetch OpenAPI spec with detailed error (ensure UTF-8 encoding)
-            # Set locale to ensure UTF-8 handling
-            export LC_ALL=C.UTF-8
-            export LANG=C.UTF-8
-            httpStatus=$(curl -H "Accept-Charset: utf-8" -H "Accept: application/json; charset=utf-8" -w "%{http_code}" -o docs/openapi.json.tmp -s http://localhost:$actualPort/specification 2>&1)
+            # Try to fetch OpenAPI spec
+            httpStatus=$(curl -w "%{http_code}" -o docs/openapi.json -s http://localhost:$actualPort/specification 2>&1)
             curlExitCode=$?
             
             if [ $curlExitCode -eq 0 ] && [ "$httpStatus" = "200" ]; then
-              # Ensure ASCII-only output for GitHub Pages compatibility
-              if command -v python3 > /dev/null 2>&1; then
-                # Use Python to ensure all non-ASCII chars are escaped
-                python3 -c "import json; content = open('docs/openapi.json.tmp', 'rb').read().decode('utf-8', errors='replace'); data = json.loads(content); json.dump(data, open('docs/openapi.json', 'w', encoding='ascii'), ensure_ascii=True, indent=2)"
-              elif command -v jq > /dev/null 2>&1; then
-                # Use jq with explicit ASCII output
-                LC_ALL=C jq --ascii-output . docs/openapi.json.tmp > docs/openapi.json
-              else
-                # Fallback to simple copy if no tools available
-                cp docs/openapi.json.tmp docs/openapi.json
-              fi
-              rm -f docs/openapi.json.tmp
               echo "SUCCESS: OpenAPI specification generated (HTTP $httpStatus)"
               break
             else
@@ -716,27 +701,9 @@ runs:
               }
               $response = Invoke-WebRequest -Uri "http://localhost:$actualPort/specification" -Headers $headers -UseBasicParsing -ErrorAction Stop -TimeoutSec 5
               
-              # Parse JSON and convert to ASCII-safe format
-              try {
-                # Ensure we're working with UTF-8 encoded content
-                $utf8Content = [System.Text.Encoding]::UTF8.GetString([System.Text.Encoding]::Default.GetBytes($response.Content))
-                $jsonObj = $utf8Content | ConvertFrom-Json
-                $jsonString = $jsonObj | ConvertTo-Json -Depth 100
-                
-                # Convert non-ASCII characters to Unicode escape sequences
-                $asciiJson = [regex]::Replace($jsonString, '[^\x00-\x7F]', {
-                  param($m)
-                  '\u' + [Convert]::ToString([int][char]$m.Value, 16).PadLeft(4, '0')
-                })
-                
-                # Save without BOM
-                $utf8NoBOM = New-Object System.Text.UTF8Encoding($false)
-                [System.IO.File]::WriteAllText((Join-Path (Get-Location) "docs/openapi.json"), $asciiJson, $utf8NoBOM)
-              } catch {
-                # Fallback if JSON parsing fails
-                $utf8NoBOM = New-Object System.Text.UTF8Encoding($false)
-                [System.IO.File]::WriteAllText((Join-Path (Get-Location) "docs/openapi.json"), $response.Content, $utf8NoBOM)
-              }
+              # Save response directly without any conversion
+              $utf8NoBOM = New-Object System.Text.UTF8Encoding($false)
+              [System.IO.File]::WriteAllText((Join-Path (Get-Location) "docs/openapi.json"), $response.Content, $utf8NoBOM)
               Write-Host "SUCCESS: OpenAPI specification generated (HTTP $($response.StatusCode))"
               break
             } catch {
